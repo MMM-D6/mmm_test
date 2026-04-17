@@ -696,7 +696,7 @@ function showTab(tab, el){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('sec-'+tab).classList.add('active');
-  if(tab==='tasks'){renderTasks();renderCal();}
+  if(tab==='tasks') renderTasks();
   if(tab==='journal') renderJournal();
   if(tab==='dreams') renderDreams();
   if(tab==='notes') renderCards();
@@ -1791,6 +1791,47 @@ async function forceReloadFromCloud(){
   }
 }
 
+
+function loadAvatar(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{ S.avatar=e.target.result; applyAvatar(); saveState(); };
+  r.readAsDataURL(f);
+}
+function applyAvatar(){
+  if(S.avatar){
+    document.getElementById('avatarImg').src=S.avatar;
+    document.getElementById('avatarImg').style.display='block';
+    document.getElementById('avatarDefault').style.display='none';
+  }
+}
+function exportJournal(){
+  let txt='=== 自我对话日志 ===\n\n';
+  S.journal.forEach(j=>{
+    txt+='['+fmtDT(j.createdAt)+']\n'+j.text+'\n';
+    if(j.tags&&j.tags.length) txt+='标签: '+j.tags.join(', ')+'\n';
+    txt+='\n---\n\n';
+  });
+  dl('journal.txt',txt);
+}
+function exportDreams(){
+  let txt='=== 梦想收集 ===\n\n';
+  S.dreams.forEach(d=>{
+    txt+='['+fmtDT(d.createdAt)+'] '+(d.title||'')+'\n'+(d.text||'')+'\n';
+    if(d.tags&&d.tags.length) txt+='标签: '+d.tags.join(', ')+'\n';
+    txt+='\n---\n\n';
+  });
+  dl('dreams.txt',txt);
+}
+function exportAll(){
+  const txt=JSON.stringify({exportedAt:new Date().toISOString()},null,2);
+  dl('mmm-backup.json',txt);
+}
+function dl(name,cnt){
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(cnt);
+  a.download=name; a.click();
+}
 function clearAll(){
   if(!confirm('确定清除所有数据？不可撤销！')) return;
   S={charName:'MMM',level:1,xp:0,tasks:[],journal:[],dreams:[],theme:{},progStep:10,nextId:1,avatar:null,bgImg:null};

@@ -580,12 +580,30 @@ async function syncToCloud() {
   }
 }
 
+// Migrate old data shapes → current shape (run after every Object.assign)
+function migrateState() {
+  // ensure all array fields always exist
+  const arrays = ['tasks','journal','dreams','cards'];
+  arrays.forEach(k => { if (!Array.isArray(S[k])) S[k] = []; });
+  // ensure scalar fields exist
+  if (!S.charName) S.charName = 'MMM';
+  if (!S.level)    S.level    = 1;
+  if (!S.xp)       S.xp       = 0;
+  if (!S.nextId)   S.nextId   = 1;
+  if (!S.progStep) S.progStep  = 10;
+  if (!S.theme)    S.theme     = {};
+  // migrate old note arrays (lit/ideas/drafts/fleeting/permanent) → discard
+  // (user never used them meaningfully; data is in journal/tasks/dreams)
+  delete S.lit; delete S.ideas; delete S.drafts;
+  delete S.fleeting; delete S.permanent;
+}
+
 // Load: try cloud first, fall back to localStorage
 async function loadState() {
   // Show local data immediately so UI is not blank
   try {
     const local = localStorage.getItem('adhd-rpg-v2');
-    if (local) Object.assign(S, JSON.parse(local));
+    if (local) { Object.assign(S, JSON.parse(local)); migrateState(); }
   } catch(e) {}
 
   // Then try to fetch cloud data (may be newer)
@@ -599,6 +617,7 @@ async function loadState() {
     if (rows && rows.length && rows[0].value) {
       const cloud = JSON.parse(rows[0].value);
       Object.assign(S, cloud);
+      migrateState();
       // Update local cache with cloud data
       try { localStorage.setItem('adhd-rpg-v2', JSON.stringify(S)); } catch(e) {}
       setSyncStatus('saved');
@@ -1842,7 +1861,7 @@ function doChangePassword(){
 (async () => {
   try {
     const local = localStorage.getItem('adhd-rpg-v2');
-    if (local) Object.assign(S, JSON.parse(local));
+    if (local) { Object.assign(S, JSON.parse(local)); migrateState(); }
   } catch(e) {}
   renderAll(); // instant paint from local
   await loadState(); // cloud sync (will re-render if cloud is newer)

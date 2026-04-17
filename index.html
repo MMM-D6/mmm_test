@@ -304,27 +304,15 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
     <!-- TASKS -->
     <div class="section active" id="sec-tasks">
       <div class="toolbar">
-        <button class="pxl-btn primary" onclick="openTaskModal()">+ 新建任务</button>
-        <input class="search-bar" id="taskSearch" placeholder="关键词搜索..." oninput="renderTasks()"/>
+        <button class="pxl-btn primary" onclick="openNewTask('todo')">+ 小任务</button>
+        <button class="pxl-btn" onclick="openNewTask('project')" style="border-color:var(--gold);color:var(--gold);">+ 项目</button>
+        <input class="search-bar" id="taskSearch" placeholder="搜索..." oninput="renderTasks()"/>
         <select class="form-select" id="taskFilter" onchange="renderTasks()">
           <option value="all">全部</option>
           <option value="todo">待办</option>
           <option value="done">已完成</option>
-          <option value="deferred">推迟</option>
         </select>
-        <button class="pxl-btn" onclick="toggleCal()">日历 ▾</button>
         <button class="pxl-btn" onclick="exportTasks()">导出</button>
-      </div>
-      <div id="calWrap" style="display:none;">
-        <div class="cal-strip">
-          <div class="cal-header">
-            <button class="cal-nav" onclick="calNav(-1)">◀</button>
-            <div class="cal-month-label" id="calLabel"></div>
-            <button class="cal-nav" onclick="calNav(1)">▶</button>
-            <button class="cal-nav" onclick="clearCalFilter()">全部</button>
-          </div>
-          <div class="cal-days" id="calDays"></div>
-        </div>
       </div>
       <div class="task-list" id="taskList"></div>
     </div>
@@ -413,18 +401,25 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
 <div class="overlay" id="taskModal">
   <div class="modal">
     <button class="close-btn" onclick="closeModal('taskModal')">✕</button>
-    <div class="modal-title" id="taskModalTitle">新建任务</div>
+    <div class="modal-title" id="taskModalTitle">新建小任务</div>
     <input type="hidden" id="editTaskId"/>
-    <div class="form-row"><label class="form-label">任务名称</label><input class="form-input" id="taskName" placeholder="输入任务..."/></div>
-    <div class="form-row"><label class="form-label">优先级</label>
-      <select class="form-select" id="taskPriority" style="width:100%;">
-        <option value="high">高 🔴</option><option value="med" selected>中 🟡</option><option value="low">低 🟢</option>
-      </select>
+    <input type="hidden" id="taskType"/>
+    <div class="form-row">
+      <label class="form-label">标题</label>
+      <input class="form-input" id="taskName" placeholder="任务名称..."/>
     </div>
-    <div class="form-row"><label class="form-label">截止日期（可选）</label><input class="form-input" id="taskDue" type="date"/></div>
-    <div class="form-row"><label class="form-label">推迟至（可选）</label><input class="form-input" id="taskDefer" type="date"/></div>
-    <div class="form-row"><label class="form-label">进度步长(%)</label><input class="form-input" id="taskProgStep" type="number" value="10" min="1" max="100"/></div>
-    <div class="form-row"><label class="form-label">子步骤（每行一个）</label><textarea class="form-textarea" id="taskSteps" rows="4" placeholder="步骤1&#10;步骤2&#10;步骤3"></textarea></div>
+    <div class="form-row" id="taskDescRow" style="display:none;">
+      <label class="form-label">描述（可选）</label>
+      <textarea class="form-textarea" id="taskDesc" rows="3" placeholder="项目描述..."></textarea>
+    </div>
+    <div class="form-row" id="taskTagsRow" style="display:none;">
+      <label class="form-label">标签（逗号分隔）</label>
+      <input class="form-input" id="taskTags" placeholder="写作, 实验, 阅读..."/>
+    </div>
+    <div class="form-row" id="taskProjectRow">
+      <label class="form-label">关联到项目（可选）</label>
+      <select class="form-select" id="taskProject" style="width:100%;"></select>
+    </div>
     <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('taskModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveTask()">保存</button>
@@ -587,6 +582,8 @@ function migrateState(loaded) {
   // Copy every field from loaded into S
   Object.keys(loaded).forEach(k => { S[k] = loaded[k]; });
   // Guarantee all required arrays exist (add missing ones, never overwrite)
+  // migrate old task format: keep existing tasks, add type field if missing
+  (S.tasks||[]).forEach(t=>{ if(!t.type) t.type='todo'; });
   ['tasks','journal','dreams','cards',
    'fleeting','permanent','lit','ideas','drafts'].forEach(k => {
     if (!Array.isArray(S[k])) S[k] = [];
@@ -704,214 +701,237 @@ function showTab(tab, el){
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 
-function openTaskModal(editId){
-  document.getElementById('taskModalTitle').textContent = editId ? '编辑任务' : '新建任务';
-  document.getElementById('editTaskId').value = editId||'';
-  if(editId){
-    const t=S.tasks.find(t=>t.id==editId);
-    if(t){
-      document.getElementById('taskName').value=t.name;
-      document.getElementById('taskPriority').value=t.priority||'med';
-      document.getElementById('taskDue').value=t.due||'';
-      document.getElementById('taskDefer').value=t.defer||'';
-      document.getElementById('taskSteps').value=(t.steps||[]).map(s=>s.text).join('\n');
-      document.getElementById('taskProgStep').value=t.progStep||S.progStep||10;
-    }
-  } else {
-    document.getElementById('taskName').value='';
-    document.getElementById('taskPriority').value='med';
-    document.getElementById('taskDue').value='';
-    document.getElementById('taskDefer').value='';
-    document.getElementById('taskSteps').value='';
-    document.getElementById('taskProgStep').value=S.progStep||10;
-  }
+function openNewTask(type, projectId){
+  document.getElementById('taskType').value = type;
+  document.getElementById('editTaskId').value = '';
+  document.getElementById('taskName').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskTags').value = '';
+  const isProject = type === 'project';
+  document.getElementById('taskModalTitle').textContent = isProject ? '新建项目' : '新建小任务';
+  document.getElementById('taskDescRow').style.display = isProject ? 'block' : 'none';
+  document.getElementById('taskTagsRow').style.display = isProject ? 'block' : 'none';
+  document.getElementById('taskProjectRow').style.display = isProject ? 'none' : 'block';
+  const sel = document.getElementById('taskProject');
+  const projects = S.tasks.filter(t => t.type === 'project' && !t.done);
+  sel.innerHTML = '<option value="">无（独立任务）</option>' +
+    projects.map(p => '<option value="' + p.id + '"' + (p.id == projectId ? ' selected' : '') + '>' + p.name + '</option>').join('');
+  openModal('taskModal');
+  setTimeout(() => document.getElementById('taskName').focus(), 100);
+}
+
+function addChildTask(projectId){ openNewTask('todo', projectId); }
+
+function openEditTask(id){
+  const t = S.tasks.find(x => x.id == id); if(!t) return;
+  const isProject = t.type === 'project';
+  document.getElementById('taskType').value = t.type || 'todo';
+  document.getElementById('editTaskId').value = id;
+  document.getElementById('taskName').value = t.name || '';
+  document.getElementById('taskDesc').value = t.desc || '';
+  document.getElementById('taskTags').value = (t.tags||[]).join(', ');
+  document.getElementById('taskModalTitle').textContent = isProject ? '编辑项目' : '编辑任务';
+  document.getElementById('taskDescRow').style.display = isProject ? 'block' : 'none';
+  document.getElementById('taskTagsRow').style.display = isProject ? 'block' : 'none';
+  document.getElementById('taskProjectRow').style.display = isProject ? 'none' : 'block';
+  const sel = document.getElementById('taskProject');
+  const projects = S.tasks.filter(x => x.type === 'project' && !x.done && x.id != id);
+  sel.innerHTML = '<option value="">无（独立任务）</option>' +
+    projects.map(p => '<option value="' + p.id + '"' + (p.id == t.projectId ? ' selected' : '') + '>' + p.name + '</option>').join('');
   openModal('taskModal');
 }
 
-// ═══════════════════════════════════════
-// AVATAR / BG
-// ═══════════════════════════════════════
-function loadAvatar(input){
-  const f=input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=e=>{ S.avatar=e.target.result; applyAvatar(); saveState(); };
-  r.readAsDataURL(f);
-}
-function applyAvatar(){
-  if(S.avatar){
-    document.getElementById('avatarImg').src=S.avatar;
-    document.getElementById('avatarImg').style.display='block';
-    document.getElementById('avatarDefault').style.display='none';
-  }
-}
-function loadBg(input){
-  const f=input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=e=>{ S.bgImg=e.target.result; applyBg(); saveState(); };
-  r.readAsDataURL(f);
-}
-function applyBg(){
-  if(S.bgImg){ document.body.style.backgroundImage=`url(${S.bgImg})`; document.body.style.backgroundSize='cover'; }
-}
-function clearBg(){ S.bgImg=null; document.body.style.backgroundImage=''; saveState(); }
+function openTaskModal(id){ if(id) openEditTask(id); else openNewTask('todo'); }
 
-// ═══════════════════════════════════════
-// TASKS
-// ═══════════════════════════════════════
 function saveTask(){
-  const name=document.getElementById('taskName').value.trim();
+  const name = document.getElementById('taskName').value.trim();
   if(!name) return;
-  const editId=document.getElementById('editTaskId').value;
-  const steps=document.getElementById('taskSteps').value.trim().split('\n').filter(s=>s.trim()).map(s=>({text:s.trim(),done:false}));
-  const step=parseInt(document.getElementById('taskProgStep').value)||10;
+  const type = document.getElementById('taskType').value || 'todo';
+  const desc = document.getElementById('taskDesc').value.trim();
+  const tags = document.getElementById('taskTags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const projectId = type === 'todo' ? (parseInt(document.getElementById('taskProject').value)||null) : null;
+  const editId = document.getElementById('editTaskId').value;
   undoStack.push(JSON.stringify(S));
   if(editId){
-    const idx=S.tasks.findIndex(t=>t.id==editId);
-    if(idx>=0) Object.assign(S.tasks[idx],{name,priority:document.getElementById('taskPriority').value,due:document.getElementById('taskDue').value,defer:document.getElementById('taskDefer').value,steps,progStep:step});
+    const t = S.tasks.find(x => x.id == editId);
+    if(t){ Object.assign(t, {name, type, desc, tags, projectId}); }
   } else {
-    S.tasks.unshift({id:S.nextId++,name,priority:document.getElementById('taskPriority').value,due:document.getElementById('taskDue').value,defer:document.getElementById('taskDefer').value,steps,progress:0,progStep:step,done:false,createdAt:new Date().toISOString(),pomoRecords:[]});
+    S.tasks.unshift({
+      id: S.nextId++, name, type, desc, tags, projectId,
+      done: false, createdAt: new Date().toISOString(), pomoRecords:[]
+    });
   }
   saveState(); closeModal('taskModal'); renderTasks();
 }
 
 function deleteTask(id){
   undoStack.push(JSON.stringify(S));
-  S.tasks=S.tasks.filter(t=>t.id!=id);
-  saveState(); renderTasks(); showUndoBar('任务已删除');
+  // also remove association from child tasks
+  S.tasks.forEach(t=>{ if(t.projectId==id) t.projectId=null; });
+  S.tasks = S.tasks.filter(t => t.id != id);
+  saveState(); renderTasks(); showUndoBar('已删除');
 }
 
 function toggleTask(id){
-  const t=S.tasks.find(t=>t.id==id); if(!t) return;
+  const t = S.tasks.find(x => x.id == id); if(!t) return;
   undoStack.push(JSON.stringify(S));
-  t.done=!t.done;
+  t.done = !t.done;
   if(t.done){
-    t.progress=100;
-    addXP(10,'完成任务');
-    if(pomoTimer && pomoTaskId==id){
-      const elapsed=pomoMin*60-Math.max(0,Math.round((pomoEndWall-Date.now())/1000));
-      const m=Math.floor(elapsed/60),s=elapsed%60;
-      if(!t.pomoRecords) t.pomoRecords=[];
+    addXP(10, '完成任务');
+    if(pomoTimer && pomoTaskId == id){
+      const elapsed = pomoMin*60 - Math.max(0, Math.round((pomoEndWall-Date.now())/1000));
+      const m = Math.floor(elapsed/60), s = elapsed%60;
+      if(!t.pomoRecords) t.pomoRecords = [];
       t.pomoRecords.push(m+'m'+p2(s)+'s @ '+fmtDT(new Date().toISOString())+'（完成时快照）');
     }
   }
   saveState(); renderTasks();
 }
 
-function toggleStep(tid,si){
-  const t=S.tasks.find(t=>t.id==tid); if(!t||!t.steps) return;
-  t.steps[si].done=!t.steps[si].done;
-  const done=t.steps.filter(s=>s.done).length;
-  t.progress=Math.round(done/t.steps.length*100);
-  saveState(); renderTasks();
-}
-
-function changeProgress(id,dir){
-  const t=S.tasks.find(t=>t.id==id); if(!t) return;
-  const step=t.progStep||S.progStep||10;
-  t.progress=Math.max(0,Math.min(100,t.progress+dir*step));
-  saveState(); renderTasks();
-}
-
-function deferTask(id){
-  const t=S.tasks.find(t=>t.id==id); if(!t) return;
-  const d=prompt('推迟到（YYYY-MM-DD）：',t.defer||'');
-  if(d!==null){t.defer=d; saveState(); renderTasks();}
-}
-
 function bindPomo(id){
-  const t=S.tasks.find(t=>t.id==id); if(!t) return;
-  pomoTaskId=id;
-  document.getElementById('pomoTaskName').textContent=t.name;
+  const t = S.tasks.find(x => x.id == id); if(!t) return;
+  pomoTaskId = id;
+  document.getElementById('pomoTaskName').textContent = t.name;
   showToast('🍅 已绑定: '+t.name);
 }
 
 function fmtDT(iso){
   if(!iso) return '';
-  const d=new Date(iso);
+  const d = new Date(iso);
   return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes());
 }
-function p2(n){return String(n).padStart(2,'0');}
+function p2(n){ return String(n).padStart(2,'0'); }
 
 function renderTasks(){
-  const search=(document.getElementById('taskSearch').value||'').toLowerCase();
-  const filter=document.getElementById('taskFilter').value;
-  let tasks=S.tasks.filter(t=>{
-    if(search && !t.name.toLowerCase().includes(search)) return false;
+  const search = (document.getElementById('taskSearch').value||'').toLowerCase();
+  const filter = document.getElementById('taskFilter').value;
+
+  // separate projects and todos
+  let all = S.tasks.filter(t=>{
+    if(search && !(t.name||'').toLowerCase().includes(search) && !(t.note||'').toLowerCase().includes(search)) return false;
     if(filter==='done' && !t.done) return false;
-    if(filter==='todo' && (t.done||t.defer)) return false;
-    if(filter==='deferred' && !t.defer) return false;
-    if(calFilter){
-      if((t.createdAt||'').slice(0,10)!==calFilter && (t.defer||'')!==calFilter) return false;
-    }
+    if(filter==='todo' && t.done) return false;
     return true;
   });
-  const list=document.getElementById('taskList');
-  if(!tasks.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📜</div>没有任务，去添加一个吧！</div>';return;}
-  list.innerHTML=tasks.map(t=>{
-    const pc=t.priority||'med';
-    const stepsHtml=(t.steps||[]).length?`<div class="steps-list">${(t.steps||[]).map((s,i)=>`<div class="step-row"><div class="step-check ${s.done?'checked':''}" onclick="toggleStep(${t.id},${i})">${s.done?'✓':''}</div><span style="${s.done?'text-decoration:line-through;color:var(--gray)':''}">${s.text}</span></div>`).join('')}</div>`:'';
-    const pomoHtml=(t.pomoRecords||[]).length?`<div class="pomo-record">🍅 ${t.pomoRecords.join(' · ')}</div>`:'';
-    const deferLabel=t.defer?` · 推迟:${t.defer}`:'';
-    const dueLabel=t.due?` · 截止:${t.due}`:'';
-    return `<div class="task-card priority-${pc} ${t.defer&&!t.done?'deferred':''} ${t.done?'done':''}">
-      <div class="task-top">
-        <div class="task-check ${t.done?'checked':''}" onclick="toggleTask(${t.id})">${t.done?'✓':''}</div>
-        <div class="task-title-wrap">
-          <div class="task-title ${t.done?'done-text':''}">${t.name}</div>
-          <div class="task-meta">${fmtDT(t.createdAt)}${dueLabel}${deferLabel}</div>
-        </div>
-        <div class="task-actions">
-          <button class="icon-btn" onclick="bindPomo(${t.id})" title="绑定番茄钟">🍅</button>
-          <button class="icon-btn" onclick="deferTask(${t.id})" title="推迟">📅</button>
-          <button class="icon-btn" onclick="openTaskModal(${t.id})" title="编辑">✏️</button>
-          <button class="icon-btn" onclick="deleteTask(${t.id})" style="color:var(--accent)">✕</button>
-        </div>
-      </div>
-      <div class="prog-row">
-        <div class="prog-wrap"><div class="prog-bar" style="width:${t.progress||0}%"></div></div>
-        <div class="prog-ctrl">
-          <button class="prog-btn" onclick="changeProgress(${t.id},-1)">−</button>
-          <span>${t.progress||0}%</span>
-          <button class="prog-btn" onclick="changeProgress(${t.id},1)">+</button>
-        </div>
-      </div>
-      ${stepsHtml}${pomoHtml}
-    </div>`;
-  }).join('');
-}
 
-// ═══════════════════════════════════════
-// CALENDAR
-// ═══════════════════════════════════════
-function toggleCal(){
-  const el=document.getElementById('calWrap');
-  el.style.display=el.style.display==='none'?'block':'none';
-  if(el.style.display==='block') renderCal();
-}
-function calNav(d){ calDate.setMonth(calDate.getMonth()+d); renderCal(); }
-function clearCalFilter(){ calFilter=null; renderTasks(); }
-function calSelect(ds){ calFilter=calFilter===ds?null:ds; renderCal(); renderTasks(); }
+  const projects = all.filter(t => t.type==='project');
+  const todos    = all.filter(t => t.type!=='project');
 
-function renderCal(){
-  const y=calDate.getFullYear(),m=calDate.getMonth();
-  const months=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
-  document.getElementById('calLabel').textContent=y+'年 '+months[m];
-  const first=new Date(y,m,1).getDay();
-  const days=new Date(y,m+1,0).getDate();
-  const today=new Date();
-  const todayStr=today.getFullYear()+'-'+p2(today.getMonth()+1)+'-'+p2(today.getDate());
-  const taskDates=new Set(S.tasks.map(t=>(t.createdAt||'').slice(0,10)));
-  const deferDates=new Set(S.tasks.filter(t=>t.defer).map(t=>t.defer));
-  let html=['日','一','二','三','四','五','六'].map(d=>`<div class="cal-dh">${d}</div>`).join('');
-  for(let i=0;i<first;i++) html+='<div class="cal-day empty"></div>';
-  for(let d=1;d<=days;d++){
-    const ds=y+'-'+p2(m+1)+'-'+p2(d);
-    const dot=taskDates.has(ds)?'has-dot':'';
-    const def=deferDates.has(ds)?'has-defer':'';
-    html+=`<div class="cal-day ${ds===todayStr?'today':''} ${ds===calFilter?'selected':''} ${dot} ${def}" onclick="calSelect('${ds}')">${d}</div>`;
+  const list = document.getElementById('taskList');
+  if(!all.length){
+    list.innerHTML='<div class="empty-state"><div class="empty-icon">📜</div>没有任务，去添加一个吧！</div>';
+    return;
   }
-  document.getElementById('calDays').innerHTML=html;
+
+  let html = '';
+
+  // render projects first, with their child todos nested
+  projects.forEach(p=>{
+    const children = S.tasks.filter(t => t.projectId==p.id && !t.type || t.projectId==p.id);
+    const childrenFiltered = children.filter(t=>{
+      if(filter==='done' && !t.done) return false;
+      if(filter==='todo' && t.done) return false;
+      return true;
+    });
+    const doneCount = children.filter(t=>t.done).length;
+    const pct = children.length ? Math.round(doneCount/children.length*100) : 0;
+
+    html += '<div class="task-card" style="border-left-color:var(--gold);">';
+    html += '<div class="task-top">';
+    html += '<div class="task-check ' + (p.done?'checked':'') + '" onclick="toggleTask('+p.id+')">'+(p.done?'✓':'')+'</div>';
+    html += '<div class="task-title-wrap">';
+    html += '<div style="font-family:var(--font-pixel);font-size:6px;color:var(--gold);margin-bottom:3px;">PROJECT</div>';
+    html += '<div class="task-title '+(p.done?'done-text':'')+'">' + p.name + '</div>';
+    if(p.desc) html += '<div class="task-meta" style="margin-top:3px;line-height:1.5;">' + p.desc + '</div>';
+    if((p.tags||[]).length) html += '<div class="tags" style="margin-top:5px;">' + p.tags.map(t=>'<span class="tag" style="border-color:var(--gold);color:var(--gold);background:rgba(245,166,35,.1);">'+t+'</span>').join('') + '</div>';
+    html += '<div class="task-meta">' + fmtDT(p.createdAt) + '</div>';
+    html += '</div>';
+    html += '<div class="task-actions">';
+    html += '<button class="icon-btn" onclick="addChildTask('+p.id+')" title="添加子任务" style="color:var(--gold);">+</button>';
+    html += '<button class="icon-btn" onclick="bindPomo('+p.id+')" title="绑定番茄钟">🍅</button>';
+    html += '<button class="icon-btn" onclick="openEditTask('+p.id+')" title="编辑">✏️</button>';
+    html += '<button class="icon-btn" onclick="deleteTask('+p.id+')" style="color:var(--accent);">✕</button>';
+    html += '</div></div>';
+
+    // progress bar
+    if(children.length){
+      html += '<div class="prog-row" style="margin-top:8px;">';
+      html += '<div class="prog-wrap"><div class="prog-bar" style="width:'+pct+'%;background:var(--gold);"></div></div>';
+      html += '<span style="font-size:13px;color:var(--gray);margin-left:8px;">'+doneCount+'/'+children.length+'</span>';
+      html += '</div>';
+    }
+
+    // child todos nested
+    if(childrenFiltered.length){
+      html += '<div style="margin-top:8px;padding-left:14px;border-left:2px solid var(--surface);">';
+      childrenFiltered.forEach(t=>{
+        html += '<div class="task-card" style="border-left-color:var(--blue);margin-bottom:6px;">';
+        html += '<div class="task-top">';
+        html += '<div class="task-check '+(t.done?'checked':'')+'" onclick="toggleTask('+t.id+')">'+(t.done?'✓':'')+'</div>';
+        html += '<div class="task-title-wrap">';
+        html += '<div class="task-title '+(t.done?'done-text':'')+'">' + t.name + '</div>';
+
+        html += '</div>';
+        html += '<div class="task-actions">';
+        html += '<button class="icon-btn" onclick="bindPomo('+t.id+')" title="绑定番茄钟">🍅</button>';
+        html += '<button class="icon-btn" onclick="openEditTask('+t.id+')" title="编辑">✏️</button>';
+        html += '<button class="icon-btn" onclick="deleteTask('+t.id+')" style="color:var(--accent);">✕</button>';
+        html += '</div></div>';
+        if((t.pomoRecords||[]).length) html += '<div class="pomo-record">🍅 '+t.pomoRecords.join(' · ')+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+  });
+
+  // standalone todos (no project)
+  const standalone = todos.filter(t => !t.projectId);
+  standalone.forEach(t=>{
+    html += '<div class="task-card '+(t.done?'done':'')+'" style="border-left-color:var(--blue);">';
+    html += '<div class="task-top">';
+    html += '<div class="task-check '+(t.done?'checked':'')+'" onclick="toggleTask('+t.id+')">'+(t.done?'✓':'')+'</div>';
+    html += '<div class="task-title-wrap">';
+    html += '<div class="task-title '+(t.done?'done-text':'')+'">' + t.name + '</div>';
+    if(t.note) html += '<div class="task-meta">' + t.note + '</div>';
+    html += '<div class="task-meta">' + fmtDT(t.createdAt) + '</div>';
+    html += '</div>';
+    html += '<div class="task-actions">';
+    html += '<button class="icon-btn" onclick="bindPomo('+t.id+')" title="绑定番茄钟">🍅</button>';
+    html += '<button class="icon-btn" onclick="openEditTask('+t.id+')" title="编辑">✏️</button>';
+    html += '<button class="icon-btn" onclick="deleteTask('+t.id+')" style="color:var(--accent);">✕</button>';
+    html += '</div></div>';
+    if((t.pomoRecords||[]).length) html += '<div class="pomo-record">🍅 '+t.pomoRecords.join(' · ')+'</div>';
+    html += '</div>';
+  });
+
+  list.innerHTML = html;
 }
+
+function exportTasks(){
+  let txt = '=== 任务导出 ===\n\n';
+  const projects = S.tasks.filter(t=>t.type==='project');
+  const standalone = S.tasks.filter(t=>t.type!=='project' && !t.projectId);
+  projects.forEach(p=>{
+    txt += '[' + (p.done?'✓':'○') + '] [PROJECT] ' + p.name + '\n';
+    if(p.desc) txt += '  ' + p.desc + '\n';
+    txt += '  创建: ' + fmtDT(p.createdAt) + '\n';
+    S.tasks.filter(t=>t.projectId==p.id).forEach(t=>{
+      txt += '  [' + (t.done?'✓':'○') + '] ' + t.name + (t.note?' — '+t.note:'') + '\n';
+    });
+    txt += '\n';
+  });
+  if(standalone.length){
+    txt += '--- 独立任务 ---\n';
+    standalone.forEach(t=>{
+      txt += '[' + (t.done?'✓':'○') + '] ' + t.name + '\n';
+      txt += '  创建: ' + fmtDT(t.createdAt) + '\n';
+    });
+  }
+  dl('tasks.txt', txt);
+}
+
 
 // ═══════════════════════════════════════
 // JOURNAL
@@ -1813,7 +1833,7 @@ function renderAll(){
   document.getElementById('charName').value=S.charName;
   if(S.progStep) document.getElementById('progStep').value=S.progStep;
   updateXPUI(); applyAvatar(); loadTheme(); applyBg();
-  renderTasks(); renderJournal(); renderDreams(); renderCal();
+  renderTasks(); renderJournal(); renderDreams();
   renderCards();
 }
 

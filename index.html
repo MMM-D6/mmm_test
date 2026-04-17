@@ -230,6 +230,114 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
 .install-banner{display:none;background:var(--accent2);border-bottom:1px solid var(--blue);padding:8px 14px;font-size:14px;color:var(--light);align-items:center;gap:10px;flex-shrink:0;}
 .install-banner.show{display:flex;}
 .install-banner button{font-family:var(--font-pixel);font-size:7px;padding:4px 8px;background:var(--blue);color:#fff;border:none;cursor:pointer;}
+
+/* ── CARD NOTES SECTION ── */
+#sec-notes {
+  background: #fff;
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+}
+#sec-notes .toolbar { background: #f5f5f5; border-bottom: 1px solid #ddd; padding: 10px 12px; }
+#sec-notes .search-bar { background: #fff; border: 1px solid #ccc; color: #111; font-family: Arial, sans-serif; }
+#sec-notes .search-bar::placeholder { color: #999; }
+#sec-notes .pxl-btn { background: #f0f0f0; color: #333; border-color: #ccc; font-family: var(--font-pixel); }
+#sec-notes .pxl-btn:hover { background: #e0e0e0; }
+#sec-notes .pxl-btn.primary { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+
+.card-note {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-left: 4px solid #4a90d9;
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111;
+  font-size: 15px;
+  line-height: 1.7;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card-note.idea-card { border-left-color: #c8901a; }
+.card-note-type {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #4a90d9;
+  margin-bottom: 8px;
+  font-family: Arial, sans-serif;
+}
+.idea-card .card-note-type { color: #c8901a; }
+.card-quote {
+  font-style: italic;
+  color: #333;
+  border-left: 3px solid #4a90d9;
+  padding-left: 12px;
+  margin-bottom: 10px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.card-body {
+  color: #111;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.card-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; margin-bottom: 8px; }
+.card-tag {
+  font-size: 12px;
+  background: #eef4fd;
+  color: #1a5ba8;
+  border: 1px solid #b8d0f0;
+  border-radius: 3px;
+  padding: 1px 8px;
+  font-family: Arial, sans-serif;
+}
+.idea-card .card-tag { background: #fef8ee; color: #8a5a00; border-color: #f0d898; }
+.card-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; flex-wrap: wrap; }
+.card-action-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  background: #f5f5f5;
+  color: #444;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+}
+.card-action-btn:hover { background: #e8e8e8; }
+.card-link-btn { border-color: #9b59b6; color: #7b3dac; }
+.card-ts { font-size: 11px; color: #999; margin-left: auto; }
+
+/* highlight styles */
+.hl-yellow { background: #fff176; border-radius: 2px; padding: 0 1px; }
+.hl-green  { background: #b9f6ca; border-radius: 2px; padding: 0 1px; }
+.hl-pink   { background: #fce4ec; border-radius: 2px; padding: 0 1px; }
+.hl-blue   { background: #e3f2fd; border-radius: 2px; padding: 0 1px; }
+
+.hl-toolbar {
+  display: none;
+  position: fixed;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  padding: 4px 6px;
+  gap: 4px;
+  z-index: 500;
+  align-items: center;
+}
+.hl-toolbar.show { display: flex; }
+.hl-swatch {
+  width: 20px; height: 20px; border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.15); flex-shrink: 0;
+}
+.hl-swatch:hover { transform: scale(1.2); }
+.hl-clear { font-size: 11px; color: #666; cursor: pointer; padding: 0 4px; border-left: 1px solid #ddd; margin-left: 2px; }
+.hl-clear:hover { color: #e94560; }
+
+.card-link-panel { margin-top: 10px; background: #f9f9f9; border: 1px solid #eee; border-radius: 4px; padding: 10px 12px; }
 </style>
 </head>
 <body>
@@ -1738,6 +1846,22 @@ function removeCardLink(id,lid){
   if(btn) btn.textContent='▸ 链接 ('+c.links.length+')';
 }
 
+function applyHlToText(text, hls){
+  // hls: [{start,end,color}]
+  if(!hls||!hls.length) return escHtml(text);
+  // sort by start
+  const sorted=[...hls].sort((a,b)=>a.start-b.start);
+  let result=''; let pos=0;
+  sorted.forEach(h=>{
+    if(h.start>pos) result+=escHtml(text.slice(pos,h.start));
+    result+='<mark class="hl-'+h.color+'">'+escHtml(text.slice(h.start,h.end))+'</mark>';
+    pos=h.end;
+  });
+  if(pos<text.length) result+=escHtml(text.slice(pos));
+  return result;
+}
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 function renderCards(){
   const kw=((document.getElementById('cardSearch')||{}).value||'').toLowerCase();
   const list=document.getElementById('cardList'); if(!list) return;
@@ -1745,15 +1869,70 @@ function renderCards(){
     if(!kw) return true;
     return ((c.quote||'')+(c.body||'')+(c.tags||[]).join(' ')).toLowerCase().includes(kw);
   });
-  if(!items.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">🗃</div>一卡一想法，从这里开始</div>';return;}
-    const _cc = c => c.type==='quote' ? 'var(--blue)' : 'var(--gold)';
-  list.innerHTML=items.map(c=>'<div class="entry-card" style="border-left-color:'+_cc(c)+';">'+
-    '<div class="entry-header"><span style="font-family:var(--font-pixel);font-size:6px;color:'+_cc(c)+';">'+(c.type==='quote'?'QUOTE':'IDEA')+'</span>'+
-    (c.quote?'<div style="font-size:15px;color:var(--gray);font-style:italic;line-height:1.6;margin-bottom:8px;white-space:pre-wrap;border-left:2px solid var(--blue);padding-left:10px;">'+c.quote+'</div>':'')+
-    (c.body?'<div style="font-size:16px;color:var(--light);line-height:1.6;white-space:pre-wrap;">'+c.body+'</div>':'')+
-    ((c.tags||[]).length?'<div class="tags" style="margin-top:8px;">'+c.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</div>':'')+
-    '<button id="cl-btn-'+c.id+'" class="pxl-btn" onclick="toggleCardLinks('+c.id+')" style="margin-top:10px;font-size:6px;border-color:var(--purple);color:var(--purple);">▸ 链接 ('+(( c.links||[]).length)+')</button>'+
-    '<div id="cl-panel-'+c.id+'" style="display:none;"></div></div>').join('');
+  if(!items.length){
+    list.innerHTML='<div class="empty-state" style="color:#999;background:#fff;padding:40px 20px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">🗃</div>一卡一想法，从这里开始</div>';
+    return;
+  }
+  list.innerHTML='';
+  items.forEach(function(c){
+    const isQ=c.type==='quote';
+    const wrap=document.createElement('div');
+    wrap.className='card-note'+(isQ?'':' idea-card');
+    wrap.id='cn-'+c.id;
+    const typeEl=document.createElement('div');
+    typeEl.className='card-note-type';
+    typeEl.textContent=isQ?'QUOTE':'IDEA';
+    wrap.appendChild(typeEl);
+    if(c.quote){
+      const qEl=document.createElement('div');
+      qEl.className='card-quote';
+      qEl.innerHTML=applyHlToText(c.quote,c.quoteHl);
+      qEl.addEventListener('mouseup',function(e){ onCardSelect(e,c.id,'quote'); });
+      wrap.appendChild(qEl);
+    }
+    if(c.body){
+      const bEl=document.createElement('div');
+      bEl.className='card-body';
+      bEl.innerHTML=applyHlToText(c.body,c.bodyHl);
+      bEl.addEventListener('mouseup',function(e){ onCardSelect(e,c.id,'body'); });
+      wrap.appendChild(bEl);
+    }
+    if((c.tags||[]).length){
+      const tEl=document.createElement('div');
+      tEl.className='card-tags';
+      tEl.innerHTML=c.tags.map(function(t){ return '<span class="card-tag">'+t+'</span>'; }).join('');
+      wrap.appendChild(tEl);
+    }
+    const acts=document.createElement('div');
+    acts.className='card-actions';
+    const editBtn=document.createElement('button');
+    editBtn.className='card-action-btn';
+    editBtn.textContent='✏️ 编辑';
+    editBtn.onclick=function(){ editCard(c.id); };
+    const linkBtn=document.createElement('button');
+    linkBtn.className='card-action-btn card-link-btn';
+    linkBtn.textContent='🔗 链接 ('+(c.links||[]).length+')';
+    linkBtn.onclick=function(){ toggleCardLinks(c.id); };
+    const ts=document.createElement('span');
+    ts.className='card-ts';
+    ts.textContent=fmtDT(c.createdAt);
+    const delBtn=document.createElement('button');
+    delBtn.className='card-action-btn';
+    delBtn.textContent='✕';
+    delBtn.style.color='#e94560';
+    delBtn.onclick=function(){ deleteCard(c.id); };
+    acts.appendChild(editBtn);
+    acts.appendChild(linkBtn);
+    acts.appendChild(ts);
+    acts.appendChild(delBtn);
+    wrap.appendChild(acts);
+    const panel=document.createElement('div');
+    panel.id='cl-panel-'+c.id;
+    panel.style.display='none';
+    panel.className='card-link-panel';
+    wrap.appendChild(panel);
+    list.appendChild(wrap);
+  });
 }
 
 function exportCards(){
@@ -1953,5 +2132,79 @@ function doChangePassword(){
 </div>
 
 
+
+<!-- HIGHLIGHT TOOLBAR -->
+<div class="hl-toolbar" id="hlToolbar">
+  <div class="hl-swatch" style="background:#fff176;" title="黄色" onclick="applyHighlight('yellow')"></div>
+  <div class="hl-swatch" style="background:#b9f6ca;" title="绿色" onclick="applyHighlight('green')"></div>
+  <div class="hl-swatch" style="background:#fce4ec;" title="粉色" onclick="applyHighlight('pink')"></div>
+  <div class="hl-swatch" style="background:#e3f2fd;" title="蓝色" onclick="applyHighlight('blue')"></div>
+  <div class="hl-clear" onclick="clearHighlight()" title="清除">✕</div>
+</div>
+<script>
+// ═══════════════════════════════════════
+// HIGHLIGHT
+// ═══════════════════════════════════════
+let _hlTarget = null; // {cid, field, start, end}
+
+function onCardSelect(e, cid, field){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed){ hideHlToolbar(); return; }
+  const range = sel.getRangeAt(0);
+  if(!range || range.collapsed){ hideHlToolbar(); return; }
+  // get text offset within the element
+  const el = e.currentTarget;
+  const fullText = el.textContent;
+  const selText = sel.toString();
+  if(!selText.trim()){ hideHlToolbar(); return; }
+  // compute start offset
+  const preRange = document.createRange();
+  preRange.setStart(el, 0);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  const start = preRange.toString().length;
+  const end = start + selText.length;
+  _hlTarget = {cid, field, start, end};
+  // position toolbar near selection
+  const rect = range.getBoundingClientRect();
+  const tb = document.getElementById('hlToolbar');
+  tb.style.left = Math.max(4, rect.left) + 'px';
+  tb.style.top = (rect.top - 44 + window.scrollY) + 'px';
+  tb.classList.add('show');
+}
+
+function hideHlToolbar(){
+  document.getElementById('hlToolbar').classList.remove('show');
+  _hlTarget = null;
+}
+
+document.addEventListener('mousedown', function(e){
+  if(!e.target.closest('#hlToolbar')) hideHlToolbar();
+});
+
+function applyHighlight(color){
+  if(!_hlTarget) return;
+  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
+  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
+  if(!c[field]) c[field]=[];
+  // merge overlapping
+  const {start,end} = _hlTarget;
+  c[field] = c[field].filter(h=>h.end<=start||h.start>=end); // remove overlaps
+  c[field].push({start,end,color});
+  hideHlToolbar();
+  window.getSelection().removeAllRanges();
+  saveState(); renderCards();
+}
+
+function clearHighlight(){
+  if(!_hlTarget) return;
+  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
+  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
+  const {start,end}=_hlTarget;
+  if(c[field]) c[field]=c[field].filter(h=>!(h.start<end&&h.end>start));
+  hideHlToolbar();
+  window.getSelection().removeAllRanges();
+  saveState(); renderCards();
+}
+</script>
 </body>
 </html>

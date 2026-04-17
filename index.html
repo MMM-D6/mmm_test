@@ -400,6 +400,8 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
           <div class="setting-title" style="margin-top:16px;">数据管理</div>
           <button class="pxl-btn" onclick="exportAll()" style="width:100%;margin-bottom:8px;">全量导出备份</button>
           <button class="pxl-btn danger" onclick="clearAll()" style="width:100%;">清除所有数据</button>
+          <button class="pxl-btn" onclick="forceReloadFromCloud()" style="width:100%;margin-top:8px;border-color:var(--blue);color:var(--blue);">⟳ 从云端强制恢复数据</button>
+          <div id="debug-out" style="font-size:11px;color:var(--gray);margin-top:8px;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div>
         </div>
       </div>
     </div>
@@ -580,22 +582,22 @@ async function syncToCloud() {
   }
 }
 
-// Migrate old data shapes → current shape (run after every Object.assign)
-function migrateState() {
-  // ensure all array fields always exist
-  const arrays = ['tasks','journal','dreams','cards'];
-  arrays.forEach(k => { if (!Array.isArray(S[k])) S[k] = []; });
-  // ensure scalar fields exist
+// Safely merge loaded data into S — never discard existing arrays
+function migrateState(loaded) {
+  // Copy every field from loaded into S
+  Object.keys(loaded).forEach(k => { S[k] = loaded[k]; });
+  // Guarantee all required arrays exist (add missing ones, never overwrite)
+  ['tasks','journal','dreams','cards',
+   'fleeting','permanent','lit','ideas','drafts'].forEach(k => {
+    if (!Array.isArray(S[k])) S[k] = [];
+  });
+  // Guarantee scalars
   if (!S.charName) S.charName = 'MMM';
-  if (!S.level)    S.level    = 1;
-  if (!S.xp)       S.xp       = 0;
-  if (!S.nextId)   S.nextId   = 1;
-  if (!S.progStep) S.progStep  = 10;
-  if (!S.theme)    S.theme     = {};
-  // migrate old note arrays (lit/ideas/drafts/fleeting/permanent) → discard
-  // (user never used them meaningfully; data is in journal/tasks/dreams)
-  delete S.lit; delete S.ideas; delete S.drafts;
-  delete S.fleeting; delete S.permanent;
+  if (typeof S.level  !== 'number') S.level   = 1;
+  if (typeof S.xp     !== 'number') S.xp      = 0;
+  if (typeof S.nextId !== 'number') S.nextId  = 1;
+  if (typeof S.progStep!=='number') S.progStep= 10;
+  if (!S.theme || typeof S.theme !== 'object') S.theme = {};
 }
 
 // Load: try cloud first, fall back to localStorage
@@ -603,7 +605,7 @@ async function loadState() {
   // Show local data immediately so UI is not blank
   try {
     const local = localStorage.getItem('adhd-rpg-v2');
-    if (local) { Object.assign(S, JSON.parse(local)); migrateState(); }
+    if (local) { migrateState(JSON.parse(local)); }
   } catch(e) {}
 
   // Then try to fetch cloud data (may be newer)
@@ -616,8 +618,7 @@ async function loadState() {
     const rows = await res.json();
     if (rows && rows.length && rows[0].value) {
       const cloud = JSON.parse(rows[0].value);
-      Object.assign(S, cloud);
-      migrateState();
+      migrateState(cloud);
       // Update local cache with cloud data
       try { localStorage.setItem('adhd-rpg-v2', JSON.stringify(S)); } catch(e) {}
       setSyncStatus('saved');
@@ -1755,34 +1756,52 @@ function renderCards(){
 }
 
 function exportCards(){
-  let txt='=== 卡片笔记 ===
-
-';
+  let txt='=== 卡片笔记 ===\n\n';
   (S.cards||[]).forEach((c,i)=>{
-    txt+=`[${i+1}] ${c.type==='quote'?'QUOTE':'IDEA'} · ${fmtDT(c.createdAt)}
-`;
-    if(c.quote) txt+=`"${c.quote}"
-`;
-    if(c.body) txt+=`${c.body}
-`;
-    if((c.tags||[]).length) txt+=`标签: ${c.tags.join(', ')}
-`;
+    txt+='['+( i+1)+'] '+(c.type==='quote'?'QUOTE':'IDEA')+' · '+fmtDT(c.createdAt)+'\n';
+    if(c.quote) txt+='"'+c.quote+'"\n';
+    if(c.body)  txt+=c.body+'\n';
+    if((c.tags||[]).length) txt+='标签: '+c.tags.join(', ')+'\n';
     if((c.links||[]).length){
       const previews=c.links.map(lid=>{
         const lk=S.cards.find(x=>x.id==lid);
         return lk?('['+lid+'] '+((lk.quote||lk.body)||'').slice(0,30)):'?';
       });
-      txt+=`链接: ${previews.join(' | ')}
-`;
+      txt+='链接: '+previews.join(' | ')+'\n';
     }
-    txt+='
----
-
-';
+    txt+='\n---\n\n';
   });
   dl('cards.txt',txt);
 }
 
+
+async function forceReloadFromCloud(){
+  const dbg = document.getElementById('debug-out');
+  if(dbg) dbg.textContent = '正在连接 Supabase...';
+  try {
+    const res = await fetch(
+      SB_URL+'/rest/v1/'+SB_TABLE+'?key=eq.'+SB_ROW_KEY+'&select=value',
+      { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY } }
+    );
+    const rows = await res.json();
+    if(dbg) dbg.textContent = 'HTTP '+res.status+'\n行数: '+(rows?rows.length:0);
+    if(rows && rows.length && rows[0].value){
+      const raw = rows[0].value;
+      if(dbg) dbg.textContent += '\n云端数据长度: '+raw.length+' chars\n预览: '+raw.slice(0,200);
+      const cloud = JSON.parse(raw);
+      migrateState(cloud);
+      try{ localStorage.setItem('adhd-rpg-v2', JSON.stringify(S)); }catch(e){}
+      renderAll();
+      setSyncStatus('saved');
+      showToast('数据已从云端恢复');
+      if(dbg) dbg.textContent += '\n\n✓ 恢复成功！tasks:'+S.tasks.length+' journal:'+S.journal.length+' dreams:'+S.dreams.length;
+    } else {
+      if(dbg) dbg.textContent += '\n云端没有数据行，rows: '+JSON.stringify(rows);
+    }
+  } catch(e) {
+    if(dbg) dbg.textContent = '错误: '+e.message;
+  }
+}
 
 function clearAll(){
   if(!confirm('确定清除所有数据？不可撤销！')) return;
@@ -1861,7 +1880,7 @@ function doChangePassword(){
 (async () => {
   try {
     const local = localStorage.getItem('adhd-rpg-v2');
-    if (local) { Object.assign(S, JSON.parse(local)); migrateState(); }
+    if (local) { migrateState(JSON.parse(local)); }
   } catch(e) {}
   renderAll(); // instant paint from local
   await loadState(); // cloud sync (will re-render if cloud is newer)

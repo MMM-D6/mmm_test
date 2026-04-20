@@ -357,6 +357,8 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
 #g-idea-list { flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px; }
 #g-idea-list::-webkit-scrollbar { width:4px; }
 #g-idea-list::-webkit-scrollbar-thumb { background:#9b72c8; }
+.g-filt-btn { font-family:var(--font-pixel);font-size:6px;padding:2px 7px;border:2px solid #1a1a2e;cursor:pointer;background:#e8d8f8;color:#1a1a2e; }
+.g-filt-btn.g-filt-on { background:#9b59b6;color:#fff; }
 .g-proj-group { display:flex;flex-direction:column;gap:2px; }
 .g-proj-hdr { display:flex;align-items:center;gap:4px;padding:4px 6px;border:2px solid #1a1a2e;background:#e8a820;cursor:grab;user-select:none; }
 .g-proj-hdr:active { cursor:grabbing; }
@@ -591,6 +593,10 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
           <div id="g-sb-hdr">
             <span id="g-sb-title">TASKS</span>
             <button id="g-sb-tog" onclick="ganttToggleSB()">&#9664;</button>
+          </div>
+          <div id="g-sb-filter" style="display:flex;gap:2px;padding:4px 6px;background:#c8b0e8;border-bottom:2px solid #1a1a2e;flex-shrink:0;">
+            <button class="g-filt-btn g-filt-on" id="g-filt-todo" onclick="ganttSetFilter('todo')">未完成</button>
+            <button class="g-filt-btn" id="g-filt-all" onclick="ganttSetFilter('all')">全部</button>
           </div>
           <div id="g-sb-body">
             <div id="g-idea-list"></div>
@@ -2261,6 +2267,14 @@ const gTaskColor = t => t.type==='project' ? G_PROJ_COLOR : G_TODO_COLOR;
 
 let gSBcol      = false;
 let gSBcollapsed = {};
+let gSBfilter   = 'todo'; // 'todo' | 'all'
+
+function ganttSetFilter(f){
+  gSBfilter=f;
+  document.getElementById('g-filt-todo').classList.toggle('g-filt-on',f==='todo');
+  document.getElementById('g-filt-all').classList.toggle('g-filt-on',f==='all');
+  ganttRenderSidebar();
+}
 let gRz         = {active:false, x0:0, w0:0};
 let gCurrentTab = 'day';
 
@@ -2279,11 +2293,12 @@ function gSetCalPos(id, pos){ if(!S.ganttPos)S.ganttPos={}; if(!S.ganttPos[id])S
 function ganttRenderSidebar(){
   const list=document.getElementById('g-idea-list'); if(!list) return;
   list.innerHTML='';
-  const projects=(S.tasks||[]).filter(t=>t.type==='project');
-  const standalone=(S.tasks||[]).filter(t=>t.type!=='project'&&!t.projectId);
+  const showAll=gSBfilter==='all';
+  const projects=(S.tasks||[]).filter(t=>t.type==='project'&&(showAll||!t.done));
+  const standalone=(S.tasks||[]).filter(t=>t.type!=='project'&&!t.projectId&&(showAll||!t.done));
 
   projects.forEach(proj=>{
-    const children=(S.tasks||[]).filter(t=>t.type!=='project'&&t.projectId==proj.id);
+    const children=(S.tasks||[]).filter(t=>t.type!=='project'&&t.projectId==proj.id&&(gSBfilter==='all'||!t.done));
     const collapsed=gSBcollapsed[proj.id];
     const group=document.createElement('div'); group.className='g-proj-group';
     const hdr=document.createElement('div');

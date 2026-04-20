@@ -1080,6 +1080,9 @@ function toggleTask(id){
     }
   }
   saveState(); renderTasks();
+  // sync gantt if visible
+  const _gs=document.getElementById('sec-gantt');
+  if(_gs&&_gs.classList.contains('active')) ganttRender();
 }
 
 function bindPomo(id){
@@ -2723,13 +2726,7 @@ window.addEventListener('mousemove',e=>{
 });
 window.addEventListener('mouseup',()=>{ gRz.active=false; });
 
-// sync task toggle → update gantt
-const _gOrigToggle=toggleTask;
-function toggleTask(id){
-  _gOrigToggle(id);
-  const gs=document.getElementById('sec-gantt');
-  if(gs&&gs.classList.contains('active')) ganttRender();
-}
+// gantt sync handled inside toggleTask directly
 
 // migrate old ganttPos format (flat → nested)
 function gMigratePos(){

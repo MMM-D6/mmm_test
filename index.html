@@ -2260,7 +2260,7 @@ function dl(name,cnt){
 const G_T0 = (()=>{ const d=new Date(); d.setHours(0,0,0,0); return d; })();
 const gAddDays = n => { const d=new Date(G_T0); d.setDate(d.getDate()+n); return d; };
 const gDayIdx  = d => { const t=new Date(d); t.setHours(0,0,0,0); return Math.round((t-G_T0)/86400000); };
-const gTodayIdx = () => gTodayIdx();
+const gTodayIdx = () => gDayIdx(new Date());
 const G_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const G_PROJ_COLOR = '#e8a820';
 const G_TODO_COLOR = '#4a90d9';

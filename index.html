@@ -436,6 +436,9 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
 .gc-hday  { font-size:6px;opacity:.7; }
 
 .gc-row { display:flex;position:relative;height:30px;border-bottom:1px solid #1a1a2e20; }
+.gc-row-handle { width:28px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:#e8d8f0;border-right:2px solid #1a1a2e20; }
+.gc-row-btn { font-family:var(--font-pixel);font-size:7px;background:none;border:none;cursor:pointer;color:#9b72c8;padding:0;line-height:1;width:16px;height:13px;display:flex;align-items:center;justify-content:center; }
+.gc-row-btn:hover { color:#1a1a2e; }
 .gc-row:nth-child(even) { background:rgba(200,232,244,.25); }
 .gc-cells { display:flex;height:100%;position:relative;flex:1; }
 .gc-cell { flex-shrink:0;height:100%;border-right:1px solid #1a1a2e0d; }
@@ -2559,6 +2562,16 @@ function gcGetRows(){
   return Object.keys(rowMap).map(r=>+r).sort((a,b)=>a-b).map(r=>({row:r,tasks:rowMap[r]}));
 }
 
+function gcSwapRows(rowA, rowB){
+  // swap the row numbers of all tasks in rowA and rowB
+  (S.tasks||[]).forEach(t=>{
+    const p=gCalPos(t.id); if(!p) return;
+    if(p.row===rowA) p.row=rowB;
+    else if(p.row===rowB) p.row=rowA;
+  });
+  saveState(); gcRender();
+}
+
 function gcStartDrag(e,taskId,type,barEl){
   e.preventDefault(); e.stopPropagation();
   const pos=gCalPos(taskId); if(!pos) return;
@@ -2642,8 +2655,23 @@ function gcRender(){
   // rows ordered by row number
   const rows=gcGetRows();
 
-  rows.forEach(({row,tasks})=>{
+  rows.forEach(({row,tasks},rowIdx)=>{
     const rowEl=document.createElement('div'); rowEl.className='gc-row';
+
+    // row handle with up/down buttons
+    const handle=document.createElement('div'); handle.className='gc-row-handle';
+    if(rowIdx>0){
+      const upBtn=document.createElement('button'); upBtn.className='gc-row-btn'; upBtn.textContent='▲';
+      upBtn.title='上移'; upBtn.onclick=()=>gcSwapRows(row, rows[rowIdx-1].row);
+      handle.appendChild(upBtn);
+    }
+    if(rowIdx<rows.length-1){
+      const dnBtn=document.createElement('button'); dnBtn.className='gc-row-btn'; dnBtn.textContent='▼';
+      dnBtn.title='下移'; dnBtn.onclick=()=>gcSwapRows(row, rows[rowIdx+1].row);
+      handle.appendChild(dnBtn);
+    }
+    rowEl.appendChild(handle);
+
     const cells=document.createElement('div'); cells.className='gc-cells'; cells.style.width=totalW+'px';
     for(let i=0;i<GC_COLS;i++){
       const d=gAddDays(gcOff+i);
@@ -2675,6 +2703,7 @@ function gcRender(){
   // empty drop row at bottom
   const emRow=document.createElement('div'); emRow.className='gc-row';
   emRow.style.cssText='border:1px dashed #1a1a2e30;background:rgba(180,220,200,.15);';
+  const emHandle=document.createElement('div'); emHandle.className='gc-row-handle'; emRow.appendChild(emHandle);
   const emCells=document.createElement('div'); emCells.className='gc-cells'; emCells.style.width=totalW+'px';
   for(let i=0;i<GC_COLS;i++){
     const c=document.createElement('div'); c.className='gc-cell'; c.style.width=GC_COL_W+'px'; emCells.appendChild(c);

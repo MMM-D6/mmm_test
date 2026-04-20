@@ -1067,7 +1067,7 @@ function saveTask(){
   } else {
     S.tasks.unshift({
       id: S.nextId++, name, type, desc, tags, projectId, note,
-      done: false, pinned: false, createdAt: new Date().toISOString(), pomoRecords:[]
+      done: false, createdAt: new Date().toISOString(), pomoRecords:[]
     });
   }
   saveState(); closeModal('taskModal'); renderTasks();
@@ -1108,11 +1108,6 @@ function bindPomo(id){
   showToast('🍅 已绑定: '+t.name);
 }
 
-function pinTask(id){
-  const t=S.tasks.find(x=>x.id==id); if(!t) return;
-  t.pinned=!t.pinned;
-  saveState(); renderTasks();
-}
 
 function fmtDT(iso){
   if(!iso) return '';
@@ -1131,8 +1126,7 @@ function renderTasks(){
   doneItems.forEach(t=>{ const ym=(t.doneAt||t.createdAt||'').slice(0,7); if(ym) monthMap[ym]=(monthMap[ym]||0)+1; });
   renderArchive('archiveT', doneItems.map(t=>({createdAt:t.doneAt})), _taskMonthFilter, m=>{ _taskMonthFilter=m; renderTasks(); });
 
-  // pinned tasks first
-  const sortedTasks=[...(S.tasks||[])].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+  const sortedTasks=[...(S.tasks||[])];
   let tasks = sortedTasks.filter(t=>{
     if(search && !(t.name||'').toLowerCase().includes(search)) return false;
     if(filter==='done' && !t.done) return false;
@@ -1153,7 +1147,7 @@ function renderTasks(){
     return;
   }
 
-  const projects = tasks.filter(t=>t.type==='project').sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+  const projects = tasks.filter(t=>t.type==='project');
   const allTodos  = tasks.filter(t=>t.type!=='project');
 
   let html = '';
@@ -1164,12 +1158,12 @@ function renderTasks(){
       if(filter==='done' && !t.done) return false;
       if(filter==='todo' && t.done) return false;
       return true;
-    }).sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+    });
     const doneCount = allChildren.filter(t=>t.done).length;
     const pct = allChildren.length ? Math.round(doneCount/allChildren.length*100) : 0;
     const collapsed = _projCollapsed[p.id];
 
-    html += '<div class="task-card" style="border-left-color:var(--gold);'+(p.pinned?'border-top:2px solid var(--gold);':'')+'">'; 
+    html += '<div class="task-card" style="border-left-color:var(--gold);">';
     html += '<div class="task-top">';
     html += '<div class="task-check '+(p.done?'checked':'')+'" onclick="toggleTask('+p.id+')">'+( p.done?'✓':'')+'</div>';
     html += '<div class="task-title-wrap">';
@@ -1181,7 +1175,6 @@ function renderTasks(){
     html += '</div>';
     html += '<div class="task-actions">';
     html += '<button class="icon-btn" onclick="toggleProjCollapse('+p.id+')" style="font-size:11px;color:var(--gray);">'+(collapsed?'▸':'▾')+'</button>';
-    html += '<button class="icon-btn" onclick="pinTask('+p.id+')" title="置顶" style="'+(p.pinned?'color:var(--gold);':'')+'"">📌</button>';
     html += '<button class="icon-btn" onclick="addChildTask('+p.id+')" style="color:var(--gold);" title="添加子任务">+</button>';
     html += '<button class="icon-btn" onclick="bindPomo('+p.id+')" title="绑定番茄钟">🍅</button>';
     html += '<button class="icon-btn" onclick="openEditTask('+p.id+')">✏️</button>';
@@ -1198,7 +1191,7 @@ function renderTasks(){
     if(!collapsed && visChildren.length){
       html += '<div style="margin-top:8px;padding-left:12px;border-left:2px solid rgba(255,255,255,0.07);">';
       visChildren.forEach(t=>{
-        html += '<div class="task-card" style="border-left-color:var(--blue);margin-bottom:6px;'+(t.pinned?'border-top:2px solid var(--gold);':'')+'">'; 
+        html += '<div class="task-card" style="border-left-color:var(--blue);margin-bottom:6px;">';
         html += '<div class="task-top">';
         html += '<div class="task-check '+(t.done?'checked':'')+'" onclick="toggleTask('+t.id+')">'+( t.done?'✓':'')+'</div>';
         html += '<div class="task-title-wrap">';
@@ -1234,7 +1227,6 @@ function renderTasks(){
     else html += '<div class="task-meta">'+fmtDT(t.createdAt)+'</div>';
     html += '</div>';
     html += '<div class="task-actions">';
-    html += '<button class="icon-btn" onclick="pinTask('+t.id+')" title="置顶" style="'+(t.pinned?'color:var(--gold);':'')+'"">📌</button>';
     html += '<button class="icon-btn" onclick="bindPomo('+t.id+')" title="绑定番茄钟">🍅</button>';
     html += '<button class="icon-btn" onclick="openEditTask('+t.id+')">✏️</button>';
     html += '<button class="icon-btn" onclick="deleteTask('+t.id+')" style="color:var(--accent);">✕</button>';

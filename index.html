@@ -543,6 +543,8 @@ body{background:var(--bg);color:var(--light);font-family:var(--font-vt);font-siz
         <input class="search-bar" id="taskSearch" placeholder="搜索..." oninput="renderTasks()"/>
         <select class="form-select" id="taskFilter" onchange="renderTasks()">
           <option value="all">全部</option>
+          <option value="projects">项目</option>
+          <option value="standalone">零散小任务</option>
           <option value="todo">待办</option>
           <option value="done">已完成</option>
         </select>
@@ -1135,6 +1137,8 @@ function renderTasks(){
     if(search && !(t.name||'').toLowerCase().includes(search)) return false;
     if(filter==='done' && !t.done) return false;
     if(filter==='todo' && t.done) return false;
+    if(filter==='projects' && t.type!=='project') return false;
+    if(filter==='standalone' && (t.type==='project' || t.projectId)) return false;
     if(_taskMonthFilter && t.done){
       const ym=(t.doneAt||'').slice(0,7);
       if(ym!==_taskMonthFilter) return false;
@@ -1202,7 +1206,6 @@ function renderTasks(){
         if(t.doneAt) html += '<div class="task-meta">完成: '+fmtDT(t.doneAt)+'</div>';
         html += '</div>';
         html += '<div class="task-actions">';
-        html += '<button class="icon-btn" onclick="pinTask('+t.id+')" title="置顶" style="'+(t.pinned?'color:var(--gold);':'')+'">📌</button>';
         html += '<button class="icon-btn" onclick="bindPomo('+t.id+')" title="绑定番茄钟">🍅</button>';
         html += '<button class="icon-btn" onclick="openEditTask('+t.id+')">✏️</button>';
         html += '<button class="icon-btn" onclick="deleteTask('+t.id+')" style="color:var(--accent);">✕</button>';

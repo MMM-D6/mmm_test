@@ -2259,7 +2259,8 @@ function dl(name,cnt){
 // ── shared helpers ──
 const G_T0 = (()=>{ const d=new Date(); d.setHours(0,0,0,0); return d; })();
 const gAddDays = n => { const d=new Date(G_T0); d.setDate(d.getDate()+n); return d; };
-const gDayIdx  = d => Math.round((d-G_T0)/86400000);
+const gDayIdx  = d => { const t=new Date(d); t.setHours(0,0,0,0); return Math.round((t-G_T0)/86400000); };
+const gTodayIdx = () => gTodayIdx();
 const G_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const G_PROJ_COLOR = '#e8a820';
 const G_TODO_COLOR = '#4a90d9';
@@ -2467,7 +2468,7 @@ function gdRender(){
   const totalW=cols*cw;
   const m2t=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   const nowMin=new Date().getHours()*60+new Date().getMinutes();
-  const thisDay=gDayIdx(new Date());
+  const thisDay=gTodayIdx();
 
   const d=gAddDays(gdDayOff);
   const lbl=document.getElementById('g-day-lbl');
@@ -2658,7 +2659,7 @@ function gcMkBar(task,pos){
 function gcRender(){
   const grid=document.getElementById('g-cal-grid'); if(!grid) return;
   const totalW=GC_COLS*GC_COL_W;
-  const today=gDayIdx(new Date());
+  const today=gTodayIdx();
 
   const startDate=gAddDays(gcOff), endDate=gAddDays(gcOff+GC_COLS-1);
   const lbl=document.getElementById('g-cal-lbl');

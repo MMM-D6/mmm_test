@@ -1,7 +1,7 @@
 // ADHD RPG — Service Worker
 // 后台运行 + 离线缓存
 
-const CACHE_NAME = 'adhd-rpg-v1';
+const CACHE_NAME = 'adhd-rpg-v3';
 const ASSETS = [
   './',
   './index.html',

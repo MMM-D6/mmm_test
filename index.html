@@ -804,7 +804,7 @@ body{
     <!-- JOURNAL -->
     <div class="section" id="sec-journal">
       <div class="toolbar">
-        <button class="pxl-btn primary" onclick="openModal('journalModal')">+ 新建日记</button>
+        <button class="pxl-btn primary" onclick="openModal('journalModal');setTimeout(jDraftRestore,50)">💭 + 记录此刻</button>
         <input class="search-bar" id="journalSearch" placeholder="关键词搜索..." oninput="renderJournal()"/>
         <button class="pxl-btn" onclick="exportJournal()">📄 导出</button>
         <button class="pxl-btn" onclick="showRandomEntry()" style="border-color:#800080;color:var(--purple);">>> 随机回溯</button>
@@ -1072,8 +1072,9 @@ body{
   <div class="modal">
     <button class="close-btn" onclick="closeModal('journalModal')">✕</button>
     <div class="modal-title">新建日记</div>
-    <div class="form-row"><label class="form-label">今天想说...</label><textarea class="form-textarea" id="journalText" rows="8" placeholder="自由书写，这里只有你自己..."></textarea></div>
-    <div class="form-row"><label class="form-label">标签（逗号分隔）</label><input class="form-input" id="journalTags" placeholder="情绪, 反思, 想法"/></div>
+    <div class="form-row"><label class="form-label">今天想说...</label><textarea class="form-textarea" id="journalText" rows="8" placeholder="自由书写，这里只有你自己..." oninput="jDraftSave()"></textarea>
+    <div id="j-draft-hint" style="font-size:11px;color:#808080;margin-top:3px;display:none;">草稿已自动保存</div></div>
+    <div class="form-row"><label class="form-label">标签（逗号分隔）</label><input class="form-input" id="journalTags" placeholder="情绪, 反思, 想法" oninput="jDraftSave()"/></div>
     <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('journalModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveJournal()">保存 +5XP</button>
@@ -1662,6 +1663,49 @@ function exportTasks(){
 // ═══════════════════════════════════════
 // JOURNAL
 // ═══════════════════════════════════════
+// ── 日记草稿自动保存 ──
+let _jDraftTimer = null;
+function jDraftSave(){
+  clearTimeout(_jDraftTimer);
+  _jDraftTimer = setTimeout(()=>{
+    const text = document.getElementById('journalText').value;
+    const tags = document.getElementById('journalTags').value;
+    if(text){
+      localStorage.setItem('journal_draft_text', text);
+      localStorage.setItem('journal_draft_tags', tags);
+      localStorage.setItem('journal_draft_time', new Date().toISOString());
+      const hint = document.getElementById('j-draft-hint');
+      if(hint){ hint.style.display='block'; hint.textContent='草稿已自动保存 '+new Date().toLocaleTimeString(); }
+    }
+  }, 800); // 停止输入 0.8s 后保存
+}
+
+function jDraftRestore(){
+  const text = localStorage.getItem('journal_draft_text');
+  const tags = localStorage.getItem('journal_draft_tags');
+  const time = localStorage.getItem('journal_draft_time');
+  if(!text) return;
+  const ta = document.getElementById('journalText');
+  const tg = document.getElementById('journalTags');
+  const hint = document.getElementById('j-draft-hint');
+  if(ta && !ta.value){
+    ta.value = text;
+    if(tg) tg.value = tags||'';
+    if(hint){
+      const ago = time ? '（保存于 '+new Date(time).toLocaleString()+'）' : '';
+      hint.style.display='block';
+      hint.style.color='#000080';
+      hint.textContent='📋 已恢复未保存的草稿 '+ago;
+    }
+  }
+}
+
+function jDraftClear(){
+  localStorage.removeItem('journal_draft_text');
+  localStorage.removeItem('journal_draft_tags');
+  localStorage.removeItem('journal_draft_time');
+}
+
 function saveJournal(){
   const text=document.getElementById('journalText').value.trim();
   if(!text) return;
@@ -1670,6 +1714,8 @@ function saveJournal(){
   addXP(5,'日记'); saveState(); closeModal('journalModal');
   document.getElementById('journalText').value='';
   document.getElementById('journalTags').value='';
+  localStorage.removeItem('journal_draft_text');
+  localStorage.removeItem('journal_draft_tags');
   renderJournal();
 }
 

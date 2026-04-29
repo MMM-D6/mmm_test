@@ -751,10 +751,10 @@ body{
   <div class="tabs">
     <div class="tab active" onclick="showTab('tasks',this)">任务</div>
     <div class="tab" onclick="showTab('gantt',this)">甘特图</div>
-    <div class="tab" onclick="showTab('journal',this)">自我对话</div>
+    <div class="tab" onclick="showTab('journal',this)">Log</div>
     <div class="tab" onclick="showTab('checkin',this)">日历打卡</div>
     <div class="tab" onclick="showTab('eng',this)">英语卡片</div>
-    <div class="tab" onclick="showTab('dreams',this)">梦想收集</div>
+    <div class="tab" onclick="showTab('dreams',this)">Spark</div>
     <div class="tab" onclick="showTab('notes',this)">卡片笔记</div>
     <div class="tab" onclick="showTab('settings',this)">设置</div>
   </div>
@@ -1710,7 +1710,7 @@ function renderJournal(){
   list.innerHTML=entries.map(j=>`
     <div class="entry-card">
       <div class="entry-header">
-        <span class="entry-ts">${fmtDT(j.createdAt)}</span>
+        <span class="entry-ts">${fmtDT(j.createdAt)}${j.likes? '  <span style="color:#cc0000;">♥'+j.likes+'</span>' : ''}</span>
         <div style="display:flex;gap:4px;">
           <button class="icon-btn" onclick="editJournal(${j.id})" title="编辑">[EDIT]</button>
           <button class="icon-btn" onclick="deleteJournal(${j.id})" style="color:#cc0000" title="删除">✕</button>
@@ -1737,6 +1737,14 @@ function renderJournal(){
 // RANDOM CARD — reply only, no link search inside
 // ═══════════════════════════════════════
 let _rcJid = null;
+
+function rcToggleLike(){
+  const j=S.journal.find(x=>x.id==_rcJid); if(!j) return;
+  j.likes=(j.likes||0)+1;
+  saveState();
+  rcRefresh();
+  showToast('♥ ×'+j.likes);
+}
 
 function showRandomEntry(){
   if(!S.journal.length){showToast('还没有日记条目哦');return;}
@@ -1772,9 +1780,11 @@ function openRandomCard(jid){
       </div>
     </div>
     <div id="rc-linkcount" style="font-size:13px;color:#800080;margin-bottom:10px;cursor:pointer;" onclick="openLinkPanel()"></div>
-    <div style="display:flex;gap:8px;">
-      <button class="pxl-btn" id="rc-nextbtn" style="border-color:#800080;color:var(--purple);">再抽一条</button>
-      <button class="pxl-btn" id="rc-linkbtn" style="border-color:#000080;color:var(--blue);">🔗 管理关联</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="pxl-btn" id="rc-nextbtn" style="border-color:#800080;color:#800080;">再抽一条</button>
+      <button class="pxl-btn" id="rc-likebtn" onclick="rcToggleLike()" title="点赞这条记忆">♡ 点赞</button>
+      <span id="rc-likecount" style="font-size:12px;color:#cc0000;min-width:30px;"></span>
+      <button class="pxl-btn" id="rc-linkbtn" style="border-color:#000080;color:#000080;">🔗 管理关联</button>
       <button class="pxl-btn" id="rc-closebtn">关闭</button>
     </div>
   </div>`;
@@ -1809,6 +1819,13 @@ function rcRefresh(){
   if(rt) rt.textContent='▸ 回复与补充 ('+j.replies.length+')';
   const lc=document.getElementById('rc-linkcount');
   if(lc) lc.textContent=j.links.length ? '🔗 '+j.links.length+' 个关联条目（点击管理）' : '';
+
+  // 点赞显示
+  const lb=document.getElementById('rc-likebtn');
+  const lk=document.getElementById('rc-likecount');
+  const likes=j.likes||0;
+  if(lb){ lb.textContent=likes>0?'♥ 已点赞':'♡ 点赞'; lb.style.color=likes>0?'#cc0000':''; lb.style.borderColor=likes>0?'#cc0000':''; }
+  if(lk){ lk.textContent=likes>0?'×'+likes:''; }
 
   const rl=document.getElementById('rc-rlist');
   if(rl) rl.innerHTML=j.replies.length
@@ -2972,7 +2989,7 @@ function applyAvatar(){
   }
 }
 function exportJournal(){
-  let txt='=== 自我对话日志 ===\n\n';
+  let txt='=== Log日志 ===\n\n';
   S.journal.forEach(j=>{
     txt+='['+fmtDT(j.createdAt)+']\n'+j.text+'\n';
     if(j.tags&&j.tags.length) txt+='标签: '+j.tags.join(', ')+'\n';
@@ -2981,7 +2998,7 @@ function exportJournal(){
   dl('journal.txt',txt);
 }
 function exportDreams(){
-  let txt='=== 梦想收集 ===\n\n';
+  let txt='=== Spark ===\n\n';
   S.dreams.forEach(d=>{
     txt+='['+fmtDT(d.createdAt)+'] '+(d.title||'')+'\n'+(d.text||'')+'\n';
     if(d.tags&&d.tags.length) txt+='标签: '+d.tags.join(', ')+'\n';

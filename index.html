@@ -581,7 +581,8 @@ body{
 .gd-bar{position:absolute;top:3px;height:20px;border:2px solid;display:flex;align-items:center;cursor:grab;z-index:3;overflow:visible;will-change:left,width;box-shadow:1px 1px 0 rgba(0,0,0,.3);}
 .gd-bar:active{cursor:grabbing;z-index:10;}
 .gd-bar.gd-done{opacity:.4;}
-.gd-bar-h{width:8px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
+.gd-bar-h{width:10px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;background:rgba(0,0,0,.15);}
+.gd-bar-h:hover{background:rgba(0,0,0,.35);}
 .gd-bar-h span{display:block;width:2px;height:2px;background:rgba(0,0,0,.4);margin:0 auto;}
 .gd-bar-lbl{flex:1;font-family:var(--font-ui);font-size:11px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.5);}
 .gd-bar-x{position:absolute;right:1px;top:0;font-size:10px;color:rgba(0,0,0,.5);cursor:pointer;padding:0 2px;line-height:1.4;display:none;font-family:var(--font-ui);}
@@ -609,7 +610,8 @@ body{
 .gc-bar{position:absolute;top:3px;height:18px;border:2px solid;display:flex;align-items:center;cursor:grab;z-index:3;overflow:visible;will-change:left,width;box-shadow:1px 1px 0 rgba(0,0,0,.3);}
 .gc-bar:active{cursor:grabbing;z-index:10;}
 .gc-bar.gc-done{opacity:.4;}
-.gc-bar-h{width:8px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
+.gc-bar-h{width:10px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;background:rgba(0,0,0,.15);}
+.gc-bar-h:hover{background:rgba(0,0,0,.35);}
 .gc-bar-h span{display:block;width:2px;height:2px;background:rgba(0,0,0,.4);margin:0 auto;}
 .gc-bar-lbl{flex:1;font-family:var(--font-ui);font-size:10px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.5);}
 .gc-bar-x{position:absolute;right:1px;top:0;font-size:10px;color:rgba(0,0,0,.5);cursor:pointer;padding:0 2px;line-height:1.4;display:none;font-family:var(--font-ui);}
@@ -3331,11 +3333,13 @@ function gdMkBar(task,pos){
   chk.addEventListener('mousedown',e=>{ e.stopPropagation(); });
   chk.addEventListener('click',e=>{ e.stopPropagation(); toggleTask(task.id); ganttRender(); });
   bar.appendChild(chk); bar.appendChild(lh); bar.appendChild(lbl); bar.appendChild(rh); bar.appendChild(xb);
-  lh.addEventListener('mousedown',e=>{ gcHideTip(); gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
-  rh.addEventListener('mousedown',e=>{ gcHideTip(); gdStartDrag(e,task.id,'right',bar,lh,lbl,rh); });
+  lh.addEventListener('mouseenter',()=>gcHideTip());
+  rh.addEventListener('mouseenter',()=>gcHideTip());
+  lh.addEventListener('mousedown',e=>{ e.stopPropagation(); gcHideTip(); gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
+  rh.addEventListener('mousedown',e=>{ e.stopPropagation(); gcHideTip(); gdStartDrag(e,task.id,'right',bar,lh,lbl,rh); });
   bar.addEventListener('mousedown',e=>{ gcHideTip(); if(chk.contains(e.target)||lh.contains(e.target)||rh.contains(e.target)||xb.contains(e.target)) return; gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
-  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging) gcShowTip(e,task); });
-  bar.addEventListener('mousemove',e=>{ if(!_gcDragging) gcMoveTip(e); });
+  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging&&!lh.matches(':hover')&&!rh.matches(':hover')) gcShowTip(e,task); });
+  bar.addEventListener('mousemove',e=>{ if(!_gcDragging&&!lh.matches(':hover')&&!rh.matches(':hover')) gcMoveTip(e); });
   bar.addEventListener('mouseleave',()=>gcScheduleHideTip());
   return bar;
 }
@@ -3525,8 +3529,10 @@ function gcMkBar(task,pos){
   lh.addEventListener('mousedown',e=>gcStartDrag(e,task.id,'move',bar));
   rh.addEventListener('mousedown',e=>gcStartDrag(e,task.id,'right',bar));
   bar.addEventListener('mousedown',e=>{ if(chk.contains(e.target)||lh.contains(e.target)||rh.contains(e.target)||xb.contains(e.target)) return; gcStartDrag(e,task.id,'move',bar); });
-  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging) gcShowTip(e,task); });
-  bar.addEventListener('mousemove',e=>{ if(!_gcDragging) gcMoveTip(e); });
+  lh.addEventListener('mouseenter',()=>gcHideTip());
+  rh.addEventListener('mouseenter',()=>gcHideTip());
+  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging&&!lh.matches(':hover')&&!rh.matches(':hover')) gcShowTip(e,task); });
+  bar.addEventListener('mousemove',e=>{ if(!_gcDragging&&!lh.matches(':hover')&&!rh.matches(':hover')) gcMoveTip(e); });
   bar.addEventListener('mouseleave',()=>gcScheduleHideTip());
   return bar;
 }

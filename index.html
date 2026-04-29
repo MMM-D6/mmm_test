@@ -1804,9 +1804,6 @@ function openRandomCard(jid){
   if(!j.replies) j.replies=[];
   if(!j.links)   j.links=[];
 
-  // close link panel if open
-  document.getElementById('linkPanel').style.display='none';
-
   const card=document.getElementById('randomCard');
   card.style.display='block';
 
@@ -1825,7 +1822,6 @@ function openRandomCard(jid){
         <button class="pxl-btn primary" id="rc-rbtn" style="margin-top:6px;">添加补充</button>
       </div>
     </div>
-    <div id="rc-linkcount" style="font-size:13px;color:#800080;margin-bottom:10px;cursor:pointer;" onclick="openLinkPanel()"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <button class="pxl-btn" id="rc-nextbtn" style="border-color:#800080;color:#800080;">再抽一条</button>
       <button class="pxl-btn" id="rc-likebtn" onclick="rcToggleLike()" title="点赞这条记忆">♡ 点赞</button>
@@ -1861,9 +1857,6 @@ function rcRefresh(){
     ? '<div class="tags">'+j.tags.map(t=>'<span class="tag">'+t+'</span>').join('')+'</div>' : '';
   const rt=document.getElementById('rc-rtoggle');
   if(rt) rt.textContent='▸ 回复与补充 ('+j.replies.length+')';
-  const lc=document.getElementById('rc-linkcount');
-  if(lc) lc.textContent=j.links.length ? '🔗 '+j.links.length+' 个关联条目（点击管理）' : '';
-
   // 点赞显示
   const lb=document.getElementById('rc-likebtn');
   const lk=document.getElementById('rc-likecount');
@@ -1901,184 +1894,6 @@ function rcDelReply(idx){
 // ═══════════════════════════════════════
 // LINK PANEL — completely separate, static DOM, no re-render on input
 // ═══════════════════════════════════════
-let _lpJid = null;   // which entry the link panel is editing
-
-function openLinkPanel(jid){
-  // if called from random card use that entry; otherwise pick first or keep current
-  if(jid) _lpJid=jid;
-  else if(!_lpJid && S.journal.length) _lpJid=S.journal[0].id;
-  if(!_lpJid) return;
-
-  const panel=document.getElementById('linkPanel');
-  panel.style.display='block';
-  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-
-  // Build static skeleton — input lives here permanently
-  panel.innerHTML=`<div style="background:var(--surface2);border:2px solid var(--blue);padding:16px 18px;margin-bottom:16px;">
-    <div style="font-size:12px;font-weight:bold;color:#000080;margin-bottom:10px;">🔗 条目关联网络</div>
-
-    <div style="margin-bottom:12px;">
-      <div style="font-size:13px;color:#808080;margin-bottom:6px;">当前条目</div>
-      <select id="lp-entry-sel"
-        style="width:100%;background:#fff;border:2px inset #808080;color:#000;padding:6px 10px;font-size:13px;outline:none;margin-bottom:8px;"></select>
-      <div id="lp-entry-preview" style="font-size:14px;color:#808080;padding:6px 10px;border-left:2px solid var(--blue);white-space:pre-wrap;word-break:break-word;max-height:80px;overflow:hidden;"></div>
-    </div>
-
-    <div id="lp-linked-section" style="margin-bottom:12px;"></div>
-
-    <div style="font-size:13px;color:#808080;margin-bottom:6px;">搜索并添加关联</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
-      <input id="lp-kw" placeholder="关键词..." autocomplete="off"
-        style="flex:1;min-width:100px;background:#fff;border:2px inset #808080;color:#000;padding:6px 10px;font-family:var(--font-vt);font-size:15px;outline:none;"/>
-      <select id="lp-mo"
-        style="background:#fff;border:2px inset #808080;color:#000;padding:6px 8px;font-family:var(--font-vt);font-size:14px;outline:none;"></select>
-    </div>
-    <div id="lp-results"></div>
-
-    <div style="margin-top:14px;">
-      <button class="pxl-btn" id="lp-closebtn">关闭</button>
-    </div>
-  </div>`;
-
-  // Wire persistent listeners — these never get destroyed
-  document.getElementById('lp-entry-sel').addEventListener('change', function(){
-    _lpJid=parseInt(this.value); lpRefresh();
-  });
-  document.getElementById('lp-kw').addEventListener('input', lpRenderResults);
-  document.getElementById('lp-mo').addEventListener('change', lpRenderResults);
-  document.getElementById('lp-closebtn').onclick=function(){
-    panel.style.display='none';
-  };
-
-  lpPopulateEntryDropdown();
-  lpRefresh();
-}
-
-function lpPopulateEntryDropdown(){
-  const sel=document.getElementById('lp-entry-sel'); if(!sel) return;
-  sel.innerHTML=S.journal.map(j=>
-    '<option value="'+j.id+'"'+(j.id==_lpJid?' selected':'')+'>'+fmtDT(j.createdAt)+' — '+j.text.slice(0,40)+'…</option>'
-  ).join('');
-  sel.value=_lpJid;
-}
-
-// Updates everything EXCEPT the kw input and mo select
-function lpRefresh(){
-  const jid=_lpJid;
-  const j=S.journal.find(x=>x.id==jid); if(!j) return;
-  if(!j.links) j.links=[];
-
-  // preview
-  const prev=document.getElementById('lp-entry-preview');
-  if(prev) prev.textContent=j.text;
-
-  // linked list
-  const ll=document.getElementById('lp-linked-section');
-  if(ll){
-    if(j.links.length){
-      ll.innerHTML='<div style="font-size:13px;color:#808080;margin-bottom:6px;">已关联 ('+j.links.length+')</div>'
-        +j.links.map(lid=>{
-          const lj=S.journal.find(x=>x.id==lid); if(!lj) return '';
-          return '<div style="background:#c0c0c0;border-left:2px solid var(--purple);padding:6px 10px;margin-bottom:4px;display:flex;align-items:flex-start;gap:6px;">'
-            +'<div style="flex:1;">'
-            +'<span style="font-family:var(--font-pixel);font-size:6px;color:#800080;display:block;margin-bottom:2px;">'+fmtDT(lj.createdAt)+'</span>'
-            +'<span style="font-size:14px;color:#000;">'+lj.text.slice(0,80)+(lj.text.length>80?'…':'')+'</span>'
-            +'</div>'
-            +'<button class="icon-btn" onclick="lpRemLink('+lid+')" style="color:#cc0000;font-size:11px;flex-shrink:0;">✕</button>'
-            +'</div>';
-        }).join('');
-    } else {
-      ll.innerHTML='<div style="font-size:13px;color:#808080;margin-bottom:8px;">（暂无关联条目）</div>';
-    }
-  }
-
-  // rebuild month dropdown options without touching kw input
-  lpRebuildMonths();
-  lpRenderResults();
-}
-
-function lpRebuildMonths(){
-  const jid=_lpJid;
-  const j=S.journal.find(x=>x.id==jid); if(!j) return;
-  const sel=document.getElementById('lp-mo'); if(!sel) return;
-  const cur=sel.value||'';
-  const ms={};
-  S.journal.forEach(x=>{
-    if(x.id==jid) return;
-    if((j.links||[]).includes(x.id)) return;
-    const ym=(x.createdAt||'').slice(0,7); if(ym) ms[ym]=true;
-  });
-  sel.innerHTML='<option value="">全部月份</option>'
-    +Object.keys(ms).sort().reverse().map(m=>'<option value="'+m+'"'+(cur===m?' selected':'')+'>'+m+'</option>').join('');
-  if(cur) sel.value=cur;
-}
-
-// Only rewrites the results list — never touches inputs
-function lpRenderResults(){
-  const jid=_lpJid;
-  const j=S.journal.find(x=>x.id==jid); if(!j) return;
-  const kwEl=document.getElementById('lp-kw');
-  const moEl=document.getElementById('lp-mo');
-  const kw=(kwEl?kwEl.value:'').toLowerCase();
-  const mo=moEl?moEl.value:'';
-  const mount=document.getElementById('lp-results'); if(!mount) return;
-
-  const filtered=S.journal.filter(x=>{
-    if(x.id==jid) return false;
-    if((j.links||[]).includes(x.id)) return false;
-    if(mo&&(x.createdAt||'').slice(0,7)!==mo) return false;
-    if(kw&&!x.text.toLowerCase().includes(kw)&&!(x.tags||[]).join(' ').toLowerCase().includes(kw)) return false;
-    return true;
-  });
-
-  if(!filtered.length){
-    mount.innerHTML='<div style="font-size:13px;color:#808080;padding:4px 0;">没有符合条件的条目</div>';
-    return;
-  }
-
-  // Build select + button as plain HTML — no inputs in here
-  mount.innerHTML='<select id="lp-sel"'
-    +' style="width:100%;background:#fff;border:2px inset #808080;color:#000;padding:6px 10px;font-family:var(--font-vt);font-size:14px;outline:none;margin-bottom:6px;">'
-    +'<option value="">选择要关联的条目 ('+filtered.length+'条)</option>'
-    +filtered.map(x=>'<option value="'+x.id+'">'+fmtDT(x.createdAt)+' — '+x.text.slice(0,40)+'…</option>').join('')
-    +'</select>'
-    +'<button class="pxl-btn" onclick="lpAddLink()" style="border-color:#000080;color:var(--blue);">添加关联</button>';
-}
-
-function lpAddLink(){
-  const jid=_lpJid;
-  const j=S.journal.find(x=>x.id==jid); if(!j) return;
-  const sel=document.getElementById('lp-sel');
-  const lid=sel?parseInt(sel.value):0; if(!lid) return;
-  if(!j.links) j.links=[];
-  if(!j.links.includes(lid)) j.links.push(lid);
-  const lj=S.journal.find(x=>x.id==lid);
-  if(lj){if(!lj.links)lj.links=[];if(!lj.links.includes(jid))lj.links.push(jid);}
-  saveState();
-  lpRebuildMonths();
-  lpRefresh();
-  // also update random card link count if open
-  if(_rcJid) rcRefresh();
-}
-
-function lpRemLink(lid){
-  const jid=_lpJid;
-  const j=S.journal.find(x=>x.id==jid); if(!j||!j.links) return;
-  j.links=j.links.filter(x=>x!=lid);
-  const lj=S.journal.find(x=>x.id==lid);
-  if(lj&&lj.links) lj.links=lj.links.filter(x=>x!=jid);
-  saveState();
-  lpRebuildMonths();
-  lpRefresh();
-  if(_rcJid) rcRefresh();
-}
-
-// ═══════════════════════════════════════
-// DREAMS
-// ═══════════════════════════════════════
-let dreamImgData = null;
-let _dreamGroupCollapsed = {};
-
 function previewDreamImg(input){
   const f=input.files[0]; if(!f) return;
   document.getElementById('dreamImgName').textContent=f.name;

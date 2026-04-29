@@ -581,7 +581,7 @@ body{
 .gd-bar{position:absolute;top:3px;height:20px;border:2px solid;display:flex;align-items:center;cursor:grab;z-index:3;overflow:visible;will-change:left,width;box-shadow:1px 1px 0 rgba(0,0,0,.3);}
 .gd-bar:active{cursor:grabbing;z-index:10;}
 .gd-bar.gd-done{opacity:.4;}
-.gd-bar-h{width:4px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
+.gd-bar-h{width:8px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
 .gd-bar-h span{display:block;width:2px;height:2px;background:rgba(0,0,0,.4);margin:0 auto;}
 .gd-bar-lbl{flex:1;font-family:var(--font-ui);font-size:11px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.5);}
 .gd-bar-x{position:absolute;right:1px;top:0;font-size:10px;color:rgba(0,0,0,.5);cursor:pointer;padding:0 2px;line-height:1.4;display:none;font-family:var(--font-ui);}
@@ -609,7 +609,7 @@ body{
 .gc-bar{position:absolute;top:3px;height:18px;border:2px solid;display:flex;align-items:center;cursor:grab;z-index:3;overflow:visible;will-change:left,width;box-shadow:1px 1px 0 rgba(0,0,0,.3);}
 .gc-bar:active{cursor:grabbing;z-index:10;}
 .gc-bar.gc-done{opacity:.4;}
-.gc-bar-h{width:4px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
+.gc-bar-h{width:8px;flex-shrink:0;height:100%;cursor:ew-resize;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 1px;}
 .gc-bar-h span{display:block;width:2px;height:2px;background:rgba(0,0,0,.4);margin:0 auto;}
 .gc-bar-lbl{flex:1;font-family:var(--font-ui);font-size:10px;text-align:center;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.5);}
 .gc-bar-x{position:absolute;right:1px;top:0;font-size:10px;color:rgba(0,0,0,.5);cursor:pointer;padding:0 2px;line-height:1.4;display:none;font-family:var(--font-ui);}
@@ -1514,7 +1514,7 @@ function renderTasks(){
   }
 
   const projects = tasks.filter(t=>t.type==='project');
-  const allTodos  = tasks.filter(t=>t.type!=='project');
+  const allTodos  = tasks.filter(t=>t.type!=='project' && t.type!=='nontask');
 
   let html = '';
 
@@ -3032,6 +3032,7 @@ const G_PROJ_COLOR = '#000080';
 const G_TODO_COLOR = '#008080';
 // ── tooltip ──
 let _gcTip = null;
+let _gcDragging = false;
 function gcShowTip(e, task){
   if(!_gcTip){ _gcTip=document.createElement('div'); _gcTip.className='gc-tooltip'; document.body.appendChild(_gcTip); }
   const proj = task.projectId ? (S.tasks||[]).find(t=>t.id==task.projectId) : null;
@@ -3306,7 +3307,7 @@ function gdStopDrag(){
     gSetDayPos(taskId,{...pos,startMin:sm,endMin:em,dayOff:gdDayOff});
     gdRender(); // full re-render only on drop
   }
-  gdDrag=null;
+  gdDrag=null; _gcDragging=false;
   window.removeEventListener('mousemove',gdOnDrag);
   window.removeEventListener('mouseup',gdStopDrag);
 }
@@ -3330,11 +3331,11 @@ function gdMkBar(task,pos){
   chk.addEventListener('mousedown',e=>{ e.stopPropagation(); });
   chk.addEventListener('click',e=>{ e.stopPropagation(); toggleTask(task.id); ganttRender(); });
   bar.appendChild(chk); bar.appendChild(lh); bar.appendChild(lbl); bar.appendChild(rh); bar.appendChild(xb);
-  lh.addEventListener('mousedown',e=>gdStartDrag(e,task.id,'move',bar,lh,lbl,rh));
-  rh.addEventListener('mousedown',e=>gdStartDrag(e,task.id,'right',bar,lh,lbl,rh));
-  bar.addEventListener('mousedown',e=>{ if(chk.contains(e.target)||lh.contains(e.target)||rh.contains(e.target)||xb.contains(e.target)) return; gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
-  bar.addEventListener('mouseenter',e=>gcShowTip(e,task));
-  bar.addEventListener('mousemove',e=>gcMoveTip(e));
+  lh.addEventListener('mousedown',e=>{ gcHideTip(); gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
+  rh.addEventListener('mousedown',e=>{ gcHideTip(); gdStartDrag(e,task.id,'right',bar,lh,lbl,rh); });
+  bar.addEventListener('mousedown',e=>{ gcHideTip(); if(chk.contains(e.target)||lh.contains(e.target)||rh.contains(e.target)||xb.contains(e.target)) return; gdStartDrag(e,task.id,'move',bar,lh,lbl,rh); });
+  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging) gcShowTip(e,task); });
+  bar.addEventListener('mousemove',e=>{ if(!_gcDragging) gcMoveTip(e); });
   bar.addEventListener('mouseleave',()=>gcScheduleHideTip());
   return bar;
 }
@@ -3499,7 +3500,7 @@ function gcStopDrag(){
     }
     gcRender();
   }
-  gcDrag=null;
+  gcDrag=null; _gcDragging=false;
   window.removeEventListener('mousemove',gcOnDrag);
   window.removeEventListener('mouseup',gcStopDrag);
 }
@@ -3524,8 +3525,8 @@ function gcMkBar(task,pos){
   lh.addEventListener('mousedown',e=>gcStartDrag(e,task.id,'move',bar));
   rh.addEventListener('mousedown',e=>gcStartDrag(e,task.id,'right',bar));
   bar.addEventListener('mousedown',e=>{ if(chk.contains(e.target)||lh.contains(e.target)||rh.contains(e.target)||xb.contains(e.target)) return; gcStartDrag(e,task.id,'move',bar); });
-  bar.addEventListener('mouseenter',e=>gcShowTip(e,task));
-  bar.addEventListener('mousemove',e=>gcMoveTip(e));
+  bar.addEventListener('mouseenter',e=>{ if(!_gcDragging) gcShowTip(e,task); });
+  bar.addEventListener('mousemove',e=>{ if(!_gcDragging) gcMoveTip(e); });
   bar.addEventListener('mouseleave',()=>gcScheduleHideTip());
   return bar;
 }
@@ -3950,7 +3951,28 @@ document.addEventListener('mousedown',e=>{
 
 
 
+
+function ganttAutoShift(){
+  const today = gDayIdx(new Date());
+  let changed = false;
+  (S.tasks||[]).forEach(t=>{
+    // ── 日程（DAY）逻辑 ──
+    // 未完成且 dayOff < today → 顺移到今天同时段
+    // 已完成 → 固定在完成时的 dayOff，不动
+    const dp = gDayPos(t.id);
+    if(dp && !t.done && dp.dayOff < today){
+      if(!S.ganttPos) S.ganttPos={};
+      if(!S.ganttPos[t.id]) S.ganttPos[t.id]={};
+      S.ganttPos[t.id].dayPos = {...dp, dayOff: today};
+      changed = true;
+    }
+    // ── 日历（CAL）逻辑 ──
+    // 完全不动，拖到哪里是哪里，不做任何自动处理
+  });
+  if(changed){ saveState(); }
+}
 function renderAll(){
+  ganttAutoShift();
   document.getElementById('charName').value=S.charName;
   updateXPUI(); applyAvatar(); loadTheme(); applyBg();
   renderTasks(); renderJournal(); renderDreams(); renderCards();

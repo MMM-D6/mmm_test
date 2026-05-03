@@ -759,6 +759,7 @@ body{
     <div class="tab" onclick="showTab('dreams',this)">Spark</div>
     <div class="tab" onclick="showTab('notes',this)">卡片笔记</div>
     <div class="tab" onclick="showTab('settings',this)">设置</div>
+    <div class="tab" onclick="showTab('extensions',this)" style="color:#800080;border-color:#800080;">＋ 扩展</div>
   </div>
 
   <!-- MAIN -->
@@ -2901,7 +2902,12 @@ function dl(name,cnt){
 // ── shared helpers ──
 const G_T0 = (()=>{ const d=new Date(); d.setHours(0,0,0,0); return d; })();
 const gAddDays = n => { const d=new Date(G_T0); d.setDate(d.getDate()+n); return d; };
-const gDayIdx  = d => Math.round((d-G_T0)/86400000);
+// gDayIdx: 用本地年月日差计算，避免毫秒差+Math.round在午夜前后出现±1天偏差
+function gDayIdx(d){
+  const a=new Date(d); a.setHours(12,0,0,0); // 用正午做基准，避免DST边界
+  const b=new Date(G_T0); b.setHours(12,0,0,0);
+  return Math.round((a-b)/86400000);
+}
 const G_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const G_PROJ_COLOR = '#000080';
 const G_TODO_COLOR = '#008080';
@@ -4037,6 +4043,53 @@ function clearHighlight(){
   window.getSelection().removeAllRanges();
   saveState(); renderCards();
 }
+
+// ── 扩展功能管理 ──
+function extLoad(){
+  return JSON.parse(localStorage.getItem('mmm_extensions')||'[]');
+}
+function extSave(list){
+  localStorage.setItem('mmm_extensions', JSON.stringify(list));
+}
+function extAdd(){
+  const name = document.getElementById('ext-name-input').value.trim();
+  const url  = document.getElementById('ext-url-input').value.trim();
+  const desc = document.getElementById('ext-desc-input').value.trim();
+  if(!name||!url){ showToast('请填写名称和URL'); return; }
+  const list = extLoad();
+  list.push({ id: Date.now(), name, url, desc });
+  extSave(list);
+  document.getElementById('ext-name-input').value='';
+  document.getElementById('ext-url-input').value='';
+  document.getElementById('ext-desc-input').value='';
+  renderExtensions();
+  showToast('扩展已添加 ✓');
+}
+function extDelete(id){
+  extSave(extLoad().filter(e=>e.id!==id));
+  renderExtensions();
+}
+function renderExtensions(){
+  const list = extLoad();
+  const el = document.getElementById('ext-list');
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML='<div style="font-size:13px;color:#808080;padding:16px;border:2px dashed #c0c0c0;text-align:center;">还没有扩展，在下方添加第一个吧</div>';
+    return;
+  }
+  el.innerHTML = list.map(e=>`
+    <div style="background:var(--surface2);border:2px solid var(--win-darker);padding:12px 14px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:bold;color:#000080;margin-bottom:3px;">${e.name}</div>
+        ${e.desc?'<div style="font-size:11px;color:#808080;margin-bottom:4px;">'+e.desc+'</div>':''}
+        <div style="font-size:11px;color:#808080;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.url}</div>
+      </div>
+      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')" style="flex-shrink:0;">打开</button>
+      <button class="icon-btn" onclick="extDelete(${e.id})" style="color:#cc0000;flex-shrink:0;">✕</button>
+    </div>
+  `).join('');
+}
+
 </script>
 
 </body>

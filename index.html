@@ -600,6 +600,7 @@ body{
 .gc-row{display:flex;position:relative;height:26px;border-bottom:1px solid #d0d0d0;}
 .gc-sort-btns{position:absolute;left:0;top:0;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;z-index:8;padding:0 2px;background:rgba(192,192,192,.95);border-right:1px solid #a0a0a0;}
 .gc-row:hover .gc-sort-btns{display:flex;}
+.gd-row:hover .gc-sort-btns{display:flex;}
 .gc-row-btn{font-family:var(--font-ui);font-size:9px;background:none;border:none;cursor:pointer;color:#000080;padding:0;line-height:1;width:12px;height:11px;display:flex;align-items:center;justify-content:center;}
 .gc-row-btn:hover{color:#cc0000;}
 .gc-row:nth-child(even){background:#f8f8f8;}
@@ -3117,6 +3118,7 @@ const GD_COLW={5:40,10:48,30:60,60:72};
 let gdGrainI=2;
 let gdDayOff=0; // which day (relative to G_T0)
 let gdDrag=null; // {taskId,type,x0,sm0,em0,barEl,lhEl,lblEl,rhEl}
+let _gdRDrag=null; // row reorder drag state {taskId, originRow}
 let gdRaf=null;
 
 const gdGrain=()=>GD_GRAINS[gdGrainI];
@@ -3152,6 +3154,32 @@ function gdSwapRows(srcTaskId, dstTaskId){
   gSetDayPos(dstTaskId,{...pDst,row:srcRow});
   saveState(); gdRender();
 }
+// ── 日程栏行拖拽（模块级，只注册一次）──
+window.addEventListener('mousemove',function(e){
+  if(!_gdRDrag) return;
+  const grid=document.getElementById('g-day-grid'); if(!grid) return;
+  const target=document.elementFromPoint(e.clientX,e.clientY);
+  const targetRow=target&&target.closest('#g-day-grid .gd-row[data-task-id]');
+  grid.querySelectorAll('.gd-row[data-task-id]').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
+  const srcRow=grid.querySelector('.gd-row[data-task-id="'+_gdRDrag.taskId+'"]');
+  if(srcRow) srcRow.style.outline='2px solid #000080';
+  if(targetRow&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
+    targetRow.style.borderTop='2px solid #000080';
+  }
+});
+window.addEventListener('mouseup',function(e){
+  if(!_gdRDrag) return;
+  const grid=document.getElementById('g-day-grid');
+  const target=document.elementFromPoint(e.clientX,e.clientY);
+  const targetRow=target&&target.closest('#g-day-grid .gd-row[data-task-id]');
+  if(targetRow&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
+    gdSwapRows(_gdRDrag.taskId, parseInt(targetRow.dataset.taskId));
+  } else if(grid){
+    grid.querySelectorAll('.gd-row[data-task-id]').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
+  }
+  _gdRDrag=null;
+});
+
 function gdBarGeom(pos){
   if(!pos) return null;
   const g=gdGrain(), cw=gdColW(), cols=Math.floor(1440/g);
@@ -3295,13 +3323,25 @@ function gdRender(){
   placed.forEach((item,i)=>{ if(item.pos.row==null) gSetDayPos(item.task.id,{...item.pos,row:i}); });
   placed.sort((a,b)=>(a.pos.row||0)-(b.pos.row||0));
 
-  // row-drag state (mouse-based, no HTML5 drag API to avoid conflict)
-  let _gdRDrag=null; // {taskId, startY, rowEls}
-
   placed.forEach(({task,pos},rowIdx)=>{
     const rowEl=document.createElement('div');
     rowEl.className='gd-row'; rowEl.style.position='relative';
-    rowEl.dataset.taskId=String(task.id);
+
+    // ▲▼ 按钮，跟日历栏完全一样的方式
+    const sortBtns=document.createElement('div'); sortBtns.className='gc-sort-btns';
+    if(rowIdx>0){
+      const upBtn=document.createElement('button'); upBtn.className='gc-row-btn'; upBtn.textContent='▲';
+      upBtn.title='上移';
+      upBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(task.id, placed[rowIdx-1].task.id); };
+      sortBtns.appendChild(upBtn);
+    }
+    if(rowIdx<placed.length-1){
+      const dnBtn=document.createElement('button'); dnBtn.className='gc-row-btn'; dnBtn.textContent='▼';
+      dnBtn.title='下移';
+      dnBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(task.id, placed[rowIdx+1].task.id); };
+      sortBtns.appendChild(dnBtn);
+    }
+    rowEl.appendChild(sortBtns);
 
     const cells=mkCells((tid,sm)=>{
       gSetDayPos(tid,{startMin:sm,endMin:Math.min(1440,sm+g*4),dayOff:gdDayOff,row:pos.row!=null?pos.row:rowIdx});
@@ -3311,49 +3351,9 @@ function gdRender(){
     if(bar) cells.appendChild(bar);
     rowEl.appendChild(cells);
     grid.appendChild(rowEl);
-
-    // 在行空白处（非 bar 区域）mousedown 启动行拖拽
-    cells.addEventListener('mousedown',e=>{
-      // 只有点在空白格子上（非 bar）才启动行拖拽
-      if(e.target.closest('.gd-bar,.gd-bar-h,.gd-chk')) return;
-      if(gdDrag) return; // 时间条拖拽优先
-      _gdRDrag={taskId:task.id, startY:e.clientY, originRow:pos.row!=null?pos.row:rowIdx};
-      rowEl.style.outline='2px solid #000080';
-      e.preventDefault();
-    });
   });
 
-  // 行拖拽 mousemove / mouseup（挂在 window 上避免离开元素失效）
-  // 只注册一次，用标志位控制
-  if(!grid._rowDragBound){
-    grid._rowDragBound=true;
-    window.addEventListener('mousemove',e=>{
-      if(!_gdRDrag) return;
-      // 找鼠标当前悬停的行
-      const target=document.elementFromPoint(e.clientX,e.clientY);
-      const targetRow=target&&target.closest('.gd-row[data-task-id]');
-      // 清除所有高亮
-      grid.querySelectorAll('.gd-row').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
-      if(targetRow&&targetRow.dataset.taskId&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
-        targetRow.style.borderTop='2px solid #000080';
-      }
-      // 给拖拽源行加蓝边
-      const srcRow=grid.querySelector('.gd-row[data-task-id="'+_gdRDrag.taskId+'"]');
-      if(srcRow) srcRow.style.outline='2px solid #000080';
-    });
-    window.addEventListener('mouseup',e=>{
-      if(!_gdRDrag) return;
-      const target=document.elementFromPoint(e.clientX,e.clientY);
-      const targetRow=target&&target.closest('.gd-row[data-task-id]');
-      if(targetRow&&targetRow.dataset.taskId&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
-        gdSwapRows(_gdRDrag.taskId, parseInt(targetRow.dataset.taskId));
-      } else {
-        // 没放到有效目标，清除样式重渲
-        grid.querySelectorAll('.gd-row').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
-      }
-      _gdRDrag=null;
-    });
-  }
+
 
   // empty drop row
   const emRow=document.createElement('div'); emRow.className='gd-row';

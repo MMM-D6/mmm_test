@@ -897,8 +897,7 @@ body{
               <button class="g-navbtn" onclick="gDayNav(-1)">&#9664;</button>
               <div id="g-day-lbl" style="font-size:12px;font-weight:bold;min-width:100px;text-align:center;"></div>
               <button class="g-navbtn" onclick="gDayNav(1)">&#9654;</button>
-              <button class="g-navbtn" onclick="gDayToday()" style="background:#f0e8b0;">TODAY</button>
-              <button class="g-navbtn" onclick="gDayScrollNow()" style="background:#e8d030;">NOW</button>
+              <button class="g-navbtn" onclick="gDayNow()" style="background:#e8d030;font-weight:bold;">NOW</button>
               <div id="g-grain-wrap" style="display:flex;align-items:center;gap:3px;margin-left:4px;">
                 <button class="g-gbtn" onclick="gChgGrain(-1)">-</button>
                 <span id="g-grain-lbl" style="font-size:11px;min-width:28px;text-align:center;background:#fff;border:2px inset #808080;padding:1px 3px;">30m</span>
@@ -3124,15 +3123,19 @@ const gdGrain=()=>GD_GRAINS[gdGrainI];
 const gdColW=()=>GD_COLW[gdGrain()];
 
 function gDayNav(d){ gdDayOff+=d; gdRender(); }
-function gDayToday(){ gdDayOff=0; gdRender(); }
-function gDayScrollNow(){
-  gdDayOff=0; gdRender();
-  const nowMin=new Date().getHours()*60+new Date().getMinutes();
-  const cw=gdColW(), g=gdGrain();
-  const x=Math.floor(nowMin/g)*cw;
-  const scroll=document.getElementById('g-day-scroll');
-  if(scroll) scroll.scrollLeft=Math.max(0,x-scroll.clientWidth/2);
+function gDayNow(){
+  gdDayOff=gDayIdx(new Date()); // 真正的今天
+  gdRender();
+  // 滚动到当前时刻
+  setTimeout(()=>{
+    const nowMin=new Date().getHours()*60+new Date().getMinutes();
+    const cw=gdColW(), g=gdGrain();
+    const x=Math.floor(nowMin/g)*cw;
+    const scroll=document.getElementById('g-day-scroll');
+    if(scroll) scroll.scrollLeft=Math.max(0,x-scroll.clientWidth/2);
+  },50);
 }
+function gDayToday(){ gDayNow(); } // 兼容旧调用
 function gChgGrain(d){
   gdGrainI=Math.max(0,Math.min(3,gdGrainI+d));
   const lbl=document.getElementById('g-grain-lbl'); if(lbl) lbl.textContent=GD_GLBLS[gdGrainI];
@@ -3140,6 +3143,15 @@ function gChgGrain(d){
 }
 function gDayRemove(taskId){ if(!S.ganttPos)S.ganttPos={}; if(S.ganttPos[taskId]) delete S.ganttPos[taskId].dayPos; saveState(); gdRender(); }
 
+
+function gdSwapRows(srcTaskId, dstTaskId){
+  const pSrc=gDayPos(srcTaskId), pDst=gDayPos(dstTaskId);
+  if(!pSrc||!pDst) return;
+  const srcRow=pSrc.row, dstRow=pDst.row;
+  gSetDayPos(srcTaskId,{...pSrc,row:dstRow});
+  gSetDayPos(dstTaskId,{...pDst,row:srcRow});
+  saveState(); gdRender();
+}
 function gdBarGeom(pos){
   if(!pos) return null;
   const g=gdGrain(), cw=gdColW(), cols=Math.floor(1440/g);
@@ -3275,19 +3287,73 @@ function gdRender(){
     return cells;
   }
 
-  // placed task rows
-  const placed=(S.tasks||[]).filter(t=>{ const p=gDayPos(t.id); return p&&p.dayOff===gdDayOff; });
-  placed.forEach(task=>{
-    const pos=gDayPos(task.id);
-    const row=document.createElement('div'); row.className='gd-row';
+  // placed task rows — sorted by row index
+  // row-reorder via mouse drag on empty area of the row
+  const placed=(S.tasks||[])
+    .filter(t=>{ const p=gDayPos(t.id); return p&&p.dayOff===gdDayOff; })
+    .map(t=>({ task:t, pos:gDayPos(t.id) }));
+  placed.forEach((item,i)=>{ if(item.pos.row==null) gSetDayPos(item.task.id,{...item.pos,row:i}); });
+  placed.sort((a,b)=>(a.pos.row||0)-(b.pos.row||0));
+
+  // row-drag state (mouse-based, no HTML5 drag API to avoid conflict)
+  let _gdRDrag=null; // {taskId, startY, rowEls}
+
+  placed.forEach(({task,pos},rowIdx)=>{
+    const rowEl=document.createElement('div');
+    rowEl.className='gd-row'; rowEl.style.position='relative';
+    rowEl.dataset.taskId=String(task.id);
+
     const cells=mkCells((tid,sm)=>{
-      gSetDayPos(tid,{startMin:sm,endMin:Math.min(1440,sm+g*4),dayOff:gdDayOff});
+      gSetDayPos(tid,{startMin:sm,endMin:Math.min(1440,sm+g*4),dayOff:gdDayOff,row:pos.row!=null?pos.row:rowIdx});
       gdRender();
     });
     const bar=gdMkBar(task,pos);
     if(bar) cells.appendChild(bar);
-    row.appendChild(cells); grid.appendChild(row);
+    rowEl.appendChild(cells);
+    grid.appendChild(rowEl);
+
+    // 在行空白处（非 bar 区域）mousedown 启动行拖拽
+    cells.addEventListener('mousedown',e=>{
+      // 只有点在空白格子上（非 bar）才启动行拖拽
+      if(e.target.closest('.gd-bar,.gd-bar-h,.gd-chk')) return;
+      if(gdDrag) return; // 时间条拖拽优先
+      _gdRDrag={taskId:task.id, startY:e.clientY, originRow:pos.row!=null?pos.row:rowIdx};
+      rowEl.style.outline='2px solid #000080';
+      e.preventDefault();
+    });
   });
+
+  // 行拖拽 mousemove / mouseup（挂在 window 上避免离开元素失效）
+  // 只注册一次，用标志位控制
+  if(!grid._rowDragBound){
+    grid._rowDragBound=true;
+    window.addEventListener('mousemove',e=>{
+      if(!_gdRDrag) return;
+      // 找鼠标当前悬停的行
+      const target=document.elementFromPoint(e.clientX,e.clientY);
+      const targetRow=target&&target.closest('.gd-row[data-task-id]');
+      // 清除所有高亮
+      grid.querySelectorAll('.gd-row').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
+      if(targetRow&&targetRow.dataset.taskId&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
+        targetRow.style.borderTop='2px solid #000080';
+      }
+      // 给拖拽源行加蓝边
+      const srcRow=grid.querySelector('.gd-row[data-task-id="'+_gdRDrag.taskId+'"]');
+      if(srcRow) srcRow.style.outline='2px solid #000080';
+    });
+    window.addEventListener('mouseup',e=>{
+      if(!_gdRDrag) return;
+      const target=document.elementFromPoint(e.clientX,e.clientY);
+      const targetRow=target&&target.closest('.gd-row[data-task-id]');
+      if(targetRow&&targetRow.dataset.taskId&&targetRow.dataset.taskId!==String(_gdRDrag.taskId)){
+        gdSwapRows(_gdRDrag.taskId, parseInt(targetRow.dataset.taskId));
+      } else {
+        // 没放到有效目标，清除样式重渲
+        grid.querySelectorAll('.gd-row').forEach(r=>{ r.style.borderTop=''; r.style.outline=''; });
+      }
+      _gdRDrag=null;
+    });
+  }
 
   // empty drop row
   const emRow=document.createElement('div'); emRow.className='gd-row';

@@ -3147,12 +3147,12 @@ function gChgGrain(d){
 function gDayRemove(taskId){ if(!S.ganttPos)S.ganttPos={}; if(S.ganttPos[taskId]) delete S.ganttPos[taskId].dayPos; saveState(); gdRender(); }
 
 
-function gdSwapRows(srcTaskId, dstTaskId){
-  const pSrc=gDayPos(srcTaskId), pDst=gDayPos(dstTaskId);
-  if(!pSrc||!pDst) return;
-  const srcRow=pSrc.row, dstRow=pDst.row;
-  gSetDayPos(srcTaskId,{...pSrc,row:dstRow});
-  gSetDayPos(dstTaskId,{...pDst,row:srcRow});
+function gdSwapRows(rowA, rowB){
+  (S.tasks||[]).forEach(t=>{
+    const p=gDayPos(t.id); if(!p||p.dayOff!==gdDayOff) return;
+    if(p.row===rowA) gSetDayPos(t.id,{...p,row:rowB});
+    else if(p.row===rowB) gSetDayPos(t.id,{...p,row:rowA});
+  });
   saveState(); gdRender();
 }
 // ── 日程栏行拖拽（模块级，只注册一次）──
@@ -3321,7 +3321,25 @@ function gdRender(){
   const placed=(S.tasks||[])
     .filter(t=>{ const p=gDayPos(t.id); return p&&p.dayOff===gdDayOff; })
     .map(t=>({ task:t, pos:gDayPos(t.id) }));
-  placed.forEach((item,i)=>{ if(item.pos.row==null) gSetDayPos(item.task.id,{...item.pos,row:i}); });
+  // 先排序，再确保 row 值唯一连续（避免重复导致交换失效）
+  placed.sort((a,b)=>(a.pos.row??999)-(b.pos.row??999));
+  placed.forEach((item,i)=>{
+    if(item.pos.row==null||item.pos.row!==i){
+      // 只在 row 缺失时赋值，不强制重排已有顺序
+      if(item.pos.row==null) gSetDayPos(item.task.id,{...item.pos,row:i});
+    }
+  });
+  // 修复重复 row 值
+  const usedRows=new Set();
+  let nextRow=placed.length;
+  placed.forEach(item=>{
+    const p=gDayPos(item.task.id);
+    if(usedRows.has(p.row)){ gSetDayPos(item.task.id,{...p,row:nextRow++}); }
+    else usedRows.add(p.row);
+  });
+  // 重新读取 pos（已更新）
+  placed.forEach(item=>{ item.pos=gDayPos(item.task.id); });
+  placed.sort((a,b)=>(a.pos.row||0)-(b.pos.row||0));
   placed.sort((a,b)=>(a.pos.row||0)-(b.pos.row||0));
 
   placed.forEach(({task,pos},rowIdx)=>{
@@ -3333,13 +3351,13 @@ function gdRender(){
     if(rowIdx>0){
       const upBtn=document.createElement('button'); upBtn.className='gc-row-btn'; upBtn.textContent='▲';
       upBtn.title='上移';
-      upBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(task.id, placed[rowIdx-1].task.id); };
+      upBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(pos.row, placed[rowIdx-1].pos.row); };
       sortBtns.appendChild(upBtn);
     }
     if(rowIdx<placed.length-1){
       const dnBtn=document.createElement('button'); dnBtn.className='gc-row-btn'; dnBtn.textContent='▼';
       dnBtn.title='下移';
-      dnBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(task.id, placed[rowIdx+1].task.id); };
+      dnBtn.onclick=e=>{ e.stopPropagation(); gdSwapRows(pos.row, placed[rowIdx+1].pos.row); };
       sortBtns.appendChild(dnBtn);
     }
     rowEl.appendChild(sortBtns);

@@ -601,6 +601,7 @@ body{
 .gc-sort-btns{position:absolute;left:0;top:0;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;z-index:8;padding:0 2px;background:rgba(192,192,192,.95);border-right:1px solid #a0a0a0;}
 .gc-row:hover .gc-sort-btns{display:flex;}
 .gd-row:hover .gc-sort-btns{display:flex;}
+
 .gc-row-btn{font-family:var(--font-ui);font-size:9px;background:none;border:none;cursor:pointer;color:#000080;padding:0;line-height:1;width:12px;height:11px;display:flex;align-items:center;justify-content:center;}
 .gc-row-btn:hover{color:#cc0000;}
 .gc-row:nth-child(even){background:#f8f8f8;}
@@ -3583,6 +3584,20 @@ function ganttSwitchTab(tab){
   document.getElementById('g-tab-cal').classList.toggle('g-stab-on',tab==='cal');
   if(tab==='day') gdRender();
 }
+
+
+// ── 日程栏 ▲▼ 按钮跟随横向滚动 ──
+(function(){
+  const scroll = document.getElementById('g-day-scroll');
+  if(!scroll || scroll._sortBtnsBound) return;
+  scroll._sortBtnsBound = true;
+  scroll.addEventListener('scroll', function(){
+    const x = scroll.scrollLeft;
+    document.querySelectorAll('#g-day-grid .gd-row .gc-sort-btns').forEach(el=>{
+      el.style.left = x + 'px';
+    });
+  });
+})();
 
 function ganttRender(){
   ganttRenderSidebar();

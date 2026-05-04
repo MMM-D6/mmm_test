@@ -928,6 +928,18 @@ body{
     </div>
 
     <!-- SETTINGS -->
+    <div class="section" id="sec-extensions">
+      <div style="padding:4px 0 8px;font-size:12px;font-weight:bold;color:#800080;letter-spacing:1px;">＋ 扩展功能</div>
+      <div style="font-size:12px;color:#808080;margin-bottom:12px;">独立功能页面，点击在新标签页打开。</div>
+      <div id="ext-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--win-darker);">
+        <div style="font-size:11px;color:#808080;margin-bottom:6px;">添加新扩展</div>
+        <div class="form-row" style="margin:0 0 6px;"><input class="form-input" id="ext-name-input" placeholder="名称"/></div>
+        <div class="form-row" style="margin:0 0 6px;"><input class="form-input" id="ext-url-input" placeholder="URL"/></div>
+        <div class="form-row" style="margin:0 0 6px;"><input class="form-input" id="ext-desc-input" placeholder="描述（可选）"/></div>
+        <button class="pxl-btn primary" onclick="extAdd()">添加</button>
+      </div>
+    </div>
     <div class="section" id="sec-settings">
       <div class="setting-card" style="max-width:400px;">
         <div class="setting-title">🔔 通知 &amp; PWA</div>

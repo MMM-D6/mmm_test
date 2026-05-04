@@ -4169,7 +4169,14 @@ function extDelete(id){
   renderExtensions();
 }
 function renderExtensions(){
+  // 确保内置扩展始终存在
+  const builtin = [
+    {id:'builtin-task-paint', name:'Task Paint', url:'https://mmm-d6.github.io/mmm_test/task-paint.html', desc:'任务可视化画板'}
+  ];
   const list = extLoad();
+  builtin.forEach(b=>{
+    if(!list.find(e=>e.id===b.id)) list.unshift(b);
+  });
   const el = document.getElementById('ext-list');
   if(!el) return;
   if(!list.length){

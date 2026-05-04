@@ -1,27 +1,21 @@
-// ADHD RPG — Service Worker
-// 后台运行 + 离线缓存
+// ADHD RPG — Service Worker v4
+const CACHE_NAME = 'adhd-rpg-v4';
 
-const CACHE_NAME = 'adhd-rpg-v3';
-const ASSETS = [
-  './',
-  './index.html',
+// 不缓存 index.html，始终从网络获取最新版本
+// 只缓存静态资源
+const STATIC_ASSETS = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap'
 ];
 
-// Install — cache all assets
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS.filter(u => !u.startsWith('http')));
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activate — clean old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -31,18 +25,42 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch — serve from cache, fallback to network
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  
+  // index.html 始终从网络获取，确保拿到最新版本
+  if (url.pathname.endsWith('/') || url.pathname.endsWith('index.html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // unifont.ttf 体积大，优先缓存
+  if (url.pathname.endsWith('unifont.ttf')) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(resp => {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          return resp;
+        });
+      })
+    );
+    return;
+  }
+
+  // 其他静态资源：缓存优先
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      return cached || fetch(event.request).catch(() => caches.match('./index.html'));
-    })
+    caches.match(event.request).then(cached =>
+      cached || fetch(event.request)
+    )
   );
 });
 
-// Push notification support (for future use)
 self.addEventListener('push', event => {
-  const data = event.data ? event.data.json() : { title: '冒险日志', body: '番茄钟完成！' };
+  const data = event.data ? event.data.json() : { title: 'MMM', body: '番茄钟完成！' };
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,

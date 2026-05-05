@@ -2566,12 +2566,15 @@ window.addEventListener('appinstalled',()=>{
 // ═══════════════════════════════════════
 // NOTES — Zettelkasten (atomic cards)
 // ═══════════════════════════════════════
-function newCard(){
+function newCard(threadId){
   document.getElementById('cardModalTitle').textContent='新建卡片';
   document.getElementById('editCardId').value='';
   document.getElementById('cardQuote').value='';
   document.getElementById('cardBody').value='';
   document.getElementById('cardTags').value='';
+  document.getElementById('cardThreadId').value=threadId||'';
+  const hint=document.getElementById('cardThreadHint');
+  if(hint) hint.style.display=threadId?'block':'none';
   document.getElementById('typeQuote').checked=true;
   document.getElementById('quoteRow').style.display='block';
   document.getElementById('bodyLabel').textContent='我的想法 / 评注';
@@ -2602,7 +2605,8 @@ function saveCard(){
     const c=S.cards.find(x=>x.id==editId);
     if(c){c.type=type;c.quote=quote;c.body=body;c.tags=tags;c.editedAt=new Date().toISOString();}
   } else {
-    S.cards.unshift({id:S.nextId++,type,quote,body,tags,links:[],createdAt:new Date().toISOString()});
+    const newThreadId = document.getElementById('cardThreadId').value||null;
+    S.cards.unshift({id:S.nextId++,type,quote,body,tags,links:[],threadId:newThreadId||null,createdAt:new Date().toISOString()});
     addXP(5,'卡片笔记');
   }
   saveState(); closeModal('cardModal'); renderCards();
@@ -2765,7 +2769,8 @@ function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 function renderCards(){
   const kw=((document.getElementById('cardSearch')||{}).value||'').toLowerCase();
   const list=document.getElementById('cardList'); if(!list) return;
-  const items=(S.cards||[]).filter(c=>{
+  const allCards=(S.cards||[]);
+  const items=allCards.filter(c=>{
     if(!kw) return true;
     return ((c.quote||'')+(c.body||'')+(c.tags||[]).join(' ')).toLowerCase().includes(kw);
   });
@@ -2774,7 +2779,13 @@ function renderCards(){
     return;
   }
   list.innerHTML='';
+  // 已经在串里作为子卡的 id 集合（不单独渲染）
+  const threadChildren=new Set();
+  allCards.forEach(c=>{ if(c.threadId) threadChildren.add(c.id); });
+
   items.forEach(function(c){
+    // 子卡不单独渲染（会在主卡下面渲染）
+    if(threadChildren.has(c.id)) return;
     const isQ=c.type==='quote';
     const wrap=document.createElement('div');
     wrap.className='card-note'+(isQ?'':' idea-card');
@@ -2832,7 +2843,98 @@ function renderCards(){
     panel.className='card-link-panel';
     wrap.appendChild(panel);
     list.appendChild(wrap);
+
+    // ── 串：渲染子卡 ──
+    const tid=String(c.id);
+    const children=allCards.filter(x=>x.threadId===tid);
+    if(children.length||c.threadOpen){
+      const threadWrap=document.createElement('div');
+      threadWrap.style.cssText='margin-left:20px;border-left:3px solid #d0b0ff;padding-left:8px;margin-bottom:4px;';
+      children.forEach(function(ch){
+        const cWrap=mkCardEl(ch,allCards,true);
+        threadWrap.appendChild(cWrap);
+      });
+      // 在串中添加按钮
+      const addBtn=document.createElement('button');
+      addBtn.className='card-action-btn';
+      addBtn.style.cssText='color:#800080;margin:4px 0;font-size:11px;';
+      addBtn.textContent='+ 在串中添加卡片';
+      addBtn.onclick=function(){ newCard(tid); };
+      threadWrap.appendChild(addBtn);
+      list.appendChild(threadWrap);
+    }
   });
+}
+
+function mkCardEl(c, allCards, isChild){
+  const isQ=c.type==='quote';
+  const wrap=document.createElement('div');
+  wrap.className='card-note'+(isQ?'':' idea-card')+(isChild?' thread-child':'');
+  wrap.id='cn-'+c.id;
+  if(isChild) wrap.style.cssText='margin-bottom:8px;opacity:0.92;';
+  const typeEl=document.createElement('div');
+  typeEl.className='card-note-type';
+  typeEl.textContent=isQ?'QUOTE':'IDEA';
+  wrap.appendChild(typeEl);
+  if(c.quote){
+    const qEl=document.createElement('div');
+    qEl.className='card-quote';
+    qEl.innerHTML=applyHlToText(c.quote,c.quoteHl);
+    qEl.addEventListener('mouseup',function(e){ onCardSelect(e,c.id,'quote'); });
+    wrap.appendChild(qEl);
+  }
+  if(c.body){
+    const bEl=document.createElement('div');
+    bEl.className='card-body';
+    bEl.innerHTML=applyHlToText(c.body,c.bodyHl);
+    bEl.addEventListener('mouseup',function(e){ onCardSelect(e,c.id,'body'); });
+    wrap.appendChild(bEl);
+  }
+  if((c.tags||[]).length){
+    const tEl=document.createElement('div');
+    tEl.className='card-tags';
+    tEl.innerHTML=c.tags.map(function(t){ return '<span class="card-tag">'+t+'</span>'; }).join('');
+    wrap.appendChild(tEl);
+  }
+  const acts=document.createElement('div');
+  acts.className='card-actions';
+  const editBtn=document.createElement('button');
+  editBtn.className='card-action-btn'; editBtn.textContent='[EDIT]';
+  editBtn.onclick=function(){ editCard(c.id); };
+  const ts=document.createElement('span');
+  ts.className='card-ts'; ts.textContent=fmtDT(c.createdAt);
+  const delBtn=document.createElement('button');
+  delBtn.className='card-action-btn'; delBtn.textContent='✕'; delBtn.style.color='#e94560';
+  delBtn.onclick=function(){ deleteCard(c.id); };
+  acts.appendChild(editBtn);
+  if(!isChild){
+    const linkBtn=document.createElement('button');
+    linkBtn.className='card-action-btn card-link-btn';
+    linkBtn.textContent='🔗 链接 ('+(c.links||[]).length+')';
+    linkBtn.onclick=function(){ toggleCardLinks(c.id); };
+    acts.appendChild(linkBtn);
+    // 串按钮
+    const threadBtn=document.createElement('button');
+    threadBtn.className='card-action-btn';
+    threadBtn.style.color='#800080';
+    const childCount=(allCards||[]).filter(x=>x.threadId===String(c.id)).length;
+    threadBtn.textContent='✦ 串'+(childCount?'('+childCount+')':'');
+    threadBtn.onclick=function(){
+      c.threadOpen=!c.threadOpen;
+      if(c.threadOpen && childCount===0){ newCard(String(c.id)); }
+      else renderCards();
+    };
+    acts.appendChild(threadBtn);
+  }
+  acts.appendChild(ts);
+  acts.appendChild(delBtn);
+  wrap.appendChild(acts);
+  if(!isChild){
+    const panel=document.createElement('div');
+    panel.id='cl-panel-'+c.id; panel.style.display='none'; panel.className='card-link-panel';
+    wrap.appendChild(panel);
+  }
+  return wrap;
 }
 
 function exportCards(){
@@ -2867,6 +2969,85 @@ function exportCards(){
 }
 
 
+
+function openCardExportModal(){
+  const cards=S.cards||[];
+  // 填充串选择
+  const tSel=document.getElementById('exportThreadSel');
+  tSel.innerHTML='';
+  const threadHeads=cards.filter(c=>!c.threadId && cards.some(x=>x.threadId===String(c.id)));
+  threadHeads.forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.id;
+    opt.textContent=(c.body||c.quote||'卡片#'+c.id).slice(0,30);
+    tSel.appendChild(opt);
+  });
+  if(!threadHeads.length){ tSel.innerHTML='<option value="">（无串）</option>'; }
+  // 填充卡片选择
+  const cSel=document.getElementById('exportCardSel');
+  cSel.innerHTML='';
+  cards.forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.id;
+    opt.textContent=(c.body||c.quote||'卡片#'+c.id).slice(0,30);
+    cSel.appendChild(opt);
+  });
+  openModal('cardExportModal');
+}
+
+function doCardExport(method){
+  const cards=S.cards||[];
+  const scope=document.querySelector('input[name="cardExportScope"]:checked').value;
+  const withTags=document.getElementById('expTags').checked;
+  const withTime=document.getElementById('expTime').checked;
+  const withType=document.getElementById('expType').checked;
+
+  let exportCards=[];
+  let title='卡片笔记导出';
+
+  if(scope==='all'){
+    exportCards=cards;
+    title='全部卡片笔记';
+  } else if(scope==='thread'){
+    const headId=String(document.getElementById('exportThreadSel').value);
+    const head=cards.find(c=>String(c.id)===headId);
+    if(!head){ showToast('请选择串'); return; }
+    exportCards=[head,...cards.filter(c=>c.threadId===headId)];
+    title='串：'+(head.body||head.quote||'').slice(0,20);
+  } else if(scope==='card'){
+    const cardId=parseInt(document.getElementById('exportCardSel').value);
+    const card=cards.find(c=>c.id===cardId);
+    if(!card){ showToast('请选择卡片'); return; }
+    const linked=(card.links||[]).map(lid=>cards.find(c=>c.id===lid)).filter(Boolean);
+    exportCards=[card,...linked];
+    title='卡片及链接';
+  }
+
+  function fmtCard(c,idx){
+    let s='';
+    if(withType) s+=(c.type==='quote'?'QUOTE':'IDEA');
+    if(withTime) s+=(s?' · ':'')+fmtDT(c.createdAt);
+    if(s) s='['+s+']\n';
+    if(c.quote) s+='"'+c.quote+'"\n';
+    if(c.body) s+=c.body+'\n';
+    if(withTags&&(c.tags||[]).length) s+='#'+c.tags.join(' #')+'\n';
+    return s;
+  }
+
+  let txt=title+'
+'+'─'.repeat(30)+'
+
+';
+  exportCards.forEach((c,i)=>{ txt+=fmtCard(c,i+1)+'
+'; });
+
+  if(method==='copy'){
+    navigator.clipboard.writeText(txt).then(()=>showToast('已复制到剪切板 ✓')).catch(()=>showToast('复制失败，请手动复制'));
+  } else {
+    dl(title.replace(/[^a-zA-Z0-9一-龥]/g,'_')+'.txt', txt);
+  }
+  closeModal('cardExportModal');
+}
 
 function loadAvatar(input){
   const f=input.files[0]; if(!f) return;
@@ -4050,11 +4231,13 @@ function doChangePassword(){
 <!-- FLEETING MODAL -->
 <!-- CARD MODAL -->
 <div class="overlay" id="cardModal">
-  <div class="modal">
+  <div class="modal" style="max-width:600px;max-height:92vh;display:flex;flex-direction:column;">
     <button class="close-btn" onclick="closeModal('cardModal')">✕</button>
     <div class="modal-title" id="cardModalTitle">新建卡片</div>
     <input type="hidden" id="editCardId"/>
-    <div class="form-row">
+    <input type="hidden" id="cardThreadId"/>
+    <div id="cardThreadHint" style="display:none;font-size:11px;color:#800080;margin:0 0 8px;padding:4px 8px;background:#f8f0ff;border-left:3px solid #800080;">✦ 在串中新增卡片</div>
+    <div class="form-row" style="flex-shrink:0;">
       <label class="form-label">类型</label>
       <div style="display:flex;gap:8px;margin-top:2px;">
         <label style="font-size:15px;color:#000;display:flex;align-items:center;gap:5px;cursor:pointer;">
@@ -4065,19 +4248,20 @@ function doChangePassword(){
         </label>
       </div>
     </div>
-    <div class="form-row" id="quoteRow">
+    <div class="form-row" id="quoteRow" style="flex-shrink:0;">
       <label class="form-label">Quote 原文</label>
-      <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
+      <textarea class="form-textarea" id="cardQuote" rows="3" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
     </div>
-    <div class="form-row">
+    <div class="form-row" style="flex:1;display:flex;flex-direction:column;min-height:0;">
       <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
-      <textarea class="form-textarea" id="cardBody" rows="5" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？"></textarea>
+      <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？"
+        style="flex:1;min-height:160px;resize:none;line-height:1.7;font-size:15px;padding:12px;"></textarea>
     </div>
-    <div class="form-row">
+    <div class="form-row" style="flex-shrink:0;">
       <label class="form-label">标签（逗号分隔）</label>
       <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
     </div>
-    <div class="modal-btns">
+    <div class="modal-btns" style="flex-shrink:0;">
       <button class="pxl-btn" onclick="closeModal('cardModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveCard()">保存 +5XP</button>
     </div>
@@ -4252,6 +4436,43 @@ function renderExtensions(){
         <button class="pxl-btn primary" onclick="extAdd()">添加</button>
         <button class="pxl-btn" onclick="closeModal('extModal')">关闭</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Card Export Modal -->
+<div class="overlay" id="cardExportModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="close-btn" onclick="closeModal('cardExportModal')">✕</button>
+    <div class="modal-title">导出卡片笔记</div>
+
+    <div style="font-size:12px;font-weight:bold;color:#808080;margin-bottom:8px;letter-spacing:1px;">导出范围</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="cardExportScope" value="all" checked/> 全部卡片
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="cardExportScope" value="thread"/> 指定串
+        <select id="exportThreadSel" class="form-input" style="flex:1;font-size:12px;padding:2px 6px;"></select>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="radio" name="cardExportScope" value="card"/> 指定卡片 + 其链接
+        <select id="exportCardSel" class="form-input" style="flex:1;font-size:12px;padding:2px 6px;"></select>
+      </label>
+    </div>
+
+    <div style="font-size:12px;font-weight:bold;color:#808080;margin-bottom:8px;letter-spacing:1px;">包含信息</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="expTags" checked/> 标签</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="expTime" checked/> 时间信息</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="expType" checked/> 卡片类别（QUOTE/IDEA）</label>
+    </div>
+
+    <div style="font-size:12px;font-weight:bold;color:#808080;margin-bottom:8px;letter-spacing:1px;">导出方式</div>
+    <div style="display:flex;gap:8px;">
+      <button class="pxl-btn primary" onclick="doCardExport('txt')">下载 .txt</button>
+      <button class="pxl-btn" onclick="doCardExport('copy')">复制到剪切板</button>
+      <button class="pxl-btn" onclick="closeModal('cardExportModal')">取消</button>
     </div>
   </div>
 </div>

@@ -796,30 +796,33 @@ function saveProject(){
 let currentProjectName='my-project';
 async function doSaveProject(name){
   currentProjectName=name;
-  const proj={version:1,name,bgMode,bgColor,bgColor2,els:els.map(e=>JSON.parse(JSON.stringify(e)))};
-  const json=JSON.stringify(proj,null,2);
   const filename=name.endsWith('.json')?name:name+'.json';
-  // Use File System Access API if available (Chrome) for true save-as dialog
+  // showSaveFilePicker must be called immediately (user gesture), before building project data
+  let fh=null;
   if(window.showSaveFilePicker){
     try{
-      const fh=await window.showSaveFilePicker({
+      fh=await window.showSaveFilePicker({
         suggestedName:filename,
         types:[{description:'Task Paint Project',accept:{'application/json':['.json']}}]
       });
-      const writable=await fh.createWritable();
-      await writable.write(json);
-      await writable.close();
-      return;
     }catch(e){
       if(e.name==='AbortError')return; // user cancelled
-      // fall through to download fallback
+      fh=null;
     }
   }
-  // Fallback: standard download (goes to Downloads folder)
-  const blob=new Blob([json],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.download=filename;a.href=url;a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  // build project data after picker (order doesn't matter for JSON)
+  const proj={version:1,name,bgMode,bgColor,bgColor2,els:els.map(e=>JSON.parse(JSON.stringify(e)))};
+  const json=JSON.stringify(proj,null,2);
+  if(fh){
+    const writable=await fh.createWritable();
+    await writable.write(json);
+    await writable.close();
+  } else {
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.download=filename;a.href=url;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
 }
 document.getElementById('proj-import').addEventListener('change',function(){
   const file=this.files[0];if(!file)return;
@@ -846,13 +849,14 @@ document.getElementById('proj-import').addEventListener('change',function(){
 // ── export dialog ────────────────────────────────
 function openExportDialog(){document.getElementById('export-dialog').classList.add('open');const inp=document.getElementById('export-filename');inp.focus();inp.select();}
 document.getElementById('export-cancel').addEventListener('click',()=>document.getElementById('export-dialog').classList.remove('open'));
-document.getElementById('export-confirm').addEventListener('click',()=>{const name=(document.getElementById('export-filename').value.trim()||'task-paint').replace(/\.png$/i,'');document.getElementById('export-dialog').classList.remove('open');doExport(name);});
+document.getElementById('export-confirm').addEventListener('click',async()=>{const name=(document.getElementById('export-filename').value.trim()||'task-paint').replace(/\.png$/i,'');await doExport(name);document.getElementById('export-dialog').classList.remove('open');});
 document.getElementById('export-filename').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('export-confirm').click();if(e.key==='Escape')document.getElementById('export-dialog').classList.remove('open');});
 document.getElementById('save-proj-cancel').addEventListener('click',()=>document.getElementById('save-proj-dialog').classList.remove('open'));
-document.getElementById('save-proj-confirm').addEventListener('click',()=>{
+document.getElementById('save-proj-confirm').addEventListener('click',async()=>{
   const name=document.getElementById('proj-filename').value.trim()||'my-project';
+  // must call showSaveFilePicker synchronously within user gesture - close dialog after
+  await doSaveProject(name);
   document.getElementById('save-proj-dialog').classList.remove('open');
-  doSaveProject(name);
 });
 document.getElementById('proj-filename').addEventListener('keydown',e=>{
   if(e.key==='Enter')document.getElementById('save-proj-confirm').click();
@@ -882,24 +886,36 @@ function renderToCanvas(scale){
 
 function doPreview(){commitEdit();clearSel();renderToCanvas(1).then(oc=>{const pc=document.getElementById('preview-canvas');pc.width=oc.width;pc.height=oc.height;pc.getContext('2d').drawImage(oc,0,0);document.getElementById('preview-overlay').classList.add('open');});}
 document.getElementById('preview-close').addEventListener('click',()=>document.getElementById('preview-overlay').classList.remove('open'));
-function doExport(filename){commitEdit();clearSel();renderToCanvas(1).then(async oc=>{
+async function doExport(filename){
+  commitEdit();clearSel();
   const pngName=filename+'.png';
+  // showSaveFilePicker must be called before async renderToCanvas to stay in user gesture
+  let fh=null;
   if(window.showSaveFilePicker){
     try{
-      const fh=await window.showSaveFilePicker({
+      fh=await window.showSaveFilePicker({
         suggestedName:pngName,
         types:[{description:'PNG Image',accept:{'image/png':['.png']}}]
       });
-      oc.toBlob(async blob=>{
-        const writable=await fh.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      },'image/png');
-      return;
-    }catch(e){if(e.name==='AbortError')return;}
+    }catch(e){
+      if(e.name==='AbortError')return; // user cancelled
+      fh=null; // fall through to download
+    }
   }
-  oc.toBlob(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.download=pngName;a.href=url;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},'image/png');
-});}
+  const oc=await renderToCanvas(1);
+  if(fh){
+    await new Promise((res,rej)=>oc.toBlob(async blob=>{
+      try{const w=await fh.createWritable();await w.write(blob);await w.close();res();}
+      catch(e){rej(e);}
+    },'image/png'));
+  } else {
+    oc.toBlob(blob=>{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.download=pngName;a.href=url;a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    },'image/png');
+  }
+}
 
 document.getElementById('img-import').addEventListener('change',function(){const file=this.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>mkEl('image',{src:e.target.result,w:150,h:120});reader.readAsDataURL(file);this.value='';});
 

@@ -105,7 +105,8 @@ body{background:#888;display:flex;flex-direction:column;font-family:'VT323','Not
   <div class="dropdown" id="dd-file">
     <div class="ditem" data-action="new">New</div>
     <div class="dsep"></div>
-    <div class="ditem" data-action="save-project">Save Project...</div>
+    <div class="ditem" data-action="save-quick">Save</div>
+    <div class="ditem" data-action="save-project">Save As...</div>
     <div class="ditem" data-action="open-project">Open Project...</div>
     <div class="dsep"></div>
     <div class="ditem" data-action="export">Export PNG</div>
@@ -762,6 +763,8 @@ document.addEventListener('keydown',e=>{
   if(mod&&e.key==='c'){e.preventDefault();doCopy();return;}
   if(mod&&e.key==='v'){e.preventDefault();doPaste();return;}
   if(mod&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();return;}
+  if(mod&&e.key==='s'&&!e.shiftKey){e.preventDefault();quickSave();return;}
+  if(mod&&e.key==='s'&&e.shiftKey){e.preventDefault();saveProject();return;}
 });
 
 // ── toolbar ──────────────────────────────────────
@@ -775,8 +778,9 @@ function closeMenus(){document.querySelectorAll('.dropdown').forEach(d=>d.classL
 document.querySelectorAll('.mitem').forEach(item=>{item.addEventListener('click',e=>{e.stopPropagation();const m=item.dataset.menu,dd=document.getElementById('dd-'+m),was=dd.classList.contains('open');closeMenus();if(!was){const ir=item.getBoundingClientRect(),br=document.getElementById('menubar').getBoundingClientRect();dd.style.left=(ir.left-br.left)+'px';dd.classList.add('open');}});});
 document.querySelectorAll('.ditem').forEach(item=>{item.addEventListener('click',e=>{
   e.stopPropagation();const a=item.dataset.action;
-  if(a==='new'){commitEdit();els.forEach(el=>{if(el.pinned)return;const d=document.getElementById('el-'+el.id);if(d)d.remove();});els=els.filter(e=>e.pinned);selIds.clear();updStatus();updCnt();}
+  if(a==='new'){commitEdit();currentFileHandle=null;currentProjectName='my-project';els.forEach(el=>{if(el.pinned)return;const d=document.getElementById('el-'+el.id);if(d)d.remove();});els=els.filter(e=>e.pinned);selIds.clear();updStatus();updCnt();}
   else if(a==='export')openExportDialog();
+  else if(a==='save-quick')quickSave();
   else if(a==='save-project')saveProject();
   else if(a==='open-project')document.getElementById('proj-import').click();
   else if(a==='selectall')selectAll();
@@ -786,6 +790,26 @@ document.querySelectorAll('.ditem').forEach(item=>{item.addEventListener('click'
 });});
 
 // ── save / open project ──────────────────────────
+let currentFileHandle=null; // stores the file handle after first Save As
+
+async function quickSave(){
+  if(currentFileHandle){
+    // already have a handle — write directly, no dialog
+    try{
+      const proj={version:1,name:currentProjectName,bgMode,bgColor,bgColor2,els:els.map(e=>JSON.parse(JSON.stringify(e)))};
+      const json=JSON.stringify(proj,null,2);
+      const writable=await currentFileHandle.createWritable();
+      await writable.write(json);
+      await writable.close();
+      return;
+    }catch(e){
+      // handle may have become invalid, fall through to Save As
+    }
+  }
+  // No handle yet — trigger Save As
+  saveProject();
+}
+
 function saveProject(){
   // show naming dialog
   document.getElementById('save-proj-dialog').classList.add('open');
@@ -814,6 +838,7 @@ async function doSaveProject(name){
   const proj={version:1,name,bgMode,bgColor,bgColor2,els:els.map(e=>JSON.parse(JSON.stringify(e)))};
   const json=JSON.stringify(proj,null,2);
   if(fh){
+    currentFileHandle=fh; // remember for future quick saves
     const writable=await fh.createWritable();
     await writable.write(json);
     await writable.close();
@@ -834,7 +859,7 @@ document.getElementById('proj-import').addEventListener('change',function(){
       // clear canvas
       els.forEach(el=>{const d=document.getElementById('el-'+el.id);if(d)d.remove();});
       els=[];selIds.clear();
-      currentProjectName=proj.name||'my-project';bgMode=proj.bgMode||'checker';bgColor=proj.bgColor||'#c0c0ff';bgColor2=proj.bgColor2||'#ffffff';
+      currentProjectName=proj.name||'my-project';currentFileHandle=null;bgMode=proj.bgMode||'checker';bgColor=proj.bgColor||'#c0c0ff';bgColor2=proj.bgColor2||'#ffffff';
       document.getElementById('bg-color').value=bgColor;document.getElementById('bg-color2').value=bgColor2;
       document.querySelectorAll('.bgopt').forEach(o=>o.classList.toggle('act',o.dataset.bg===bgMode));
       renderBg();

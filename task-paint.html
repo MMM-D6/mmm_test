@@ -206,6 +206,21 @@ body{background:#888;display:flex;flex-direction:column;font-family:'VT323','Not
 </div>
 </div>
 
+<!-- save project dialog -->
+<div class="dialog-overlay" id="save-proj-dialog">
+  <div class="dialog-box">
+    <div class="dialog-title">SAVE PROJECT</div>
+    <div class="dialog-body">
+      <label>PROJECT NAME</label>
+      <input type="text" id="proj-filename" value="my-project" placeholder="输入项目名称">
+      <div class="dialog-btns">
+        <div class="dbtn" id="save-proj-cancel">CANCEL</div>
+        <div class="dbtn primary" id="save-proj-confirm">SAVE</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- context menu -->
 <div class="ctxmenu" id="ctxmenu">
   <div class="ctxi" id="ctx-pin" data-ctx="pin">📌 Pin</div>
@@ -772,10 +787,21 @@ document.querySelectorAll('.ditem').forEach(item=>{item.addEventListener('click'
 
 // ── save / open project ──────────────────────────
 function saveProject(){
-  const proj={version:1,bgMode,bgColor,bgColor2,els:els.map(e=>{const copy=JSON.parse(JSON.stringify(e));return copy;})};
+  // show naming dialog
+  document.getElementById('save-proj-dialog').classList.add('open');
+  const inp=document.getElementById('proj-filename');
+  inp.value=currentProjectName||'my-project';
+  inp.focus();inp.select();
+}
+let currentProjectName='my-project';
+function doSaveProject(name){
+  currentProjectName=name;
+  const proj={version:1,name,bgMode,bgColor,bgColor2,els:els.map(e=>JSON.parse(JSON.stringify(e)))};
   const blob=new Blob([JSON.stringify(proj,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.download='task-paint-project.json';a.href=url;a.click();
+  const a=document.createElement('a');
+  a.download=name.endsWith('.json')?name:name+'.json';
+  a.href=url;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 document.getElementById('proj-import').addEventListener('change',function(){
@@ -788,7 +814,7 @@ document.getElementById('proj-import').addEventListener('change',function(){
       // clear canvas
       els.forEach(el=>{const d=document.getElementById('el-'+el.id);if(d)d.remove();});
       els=[];selIds.clear();
-      bgMode=proj.bgMode||'checker';bgColor=proj.bgColor||'#c0c0ff';bgColor2=proj.bgColor2||'#ffffff';
+      currentProjectName=proj.name||'my-project';bgMode=proj.bgMode||'checker';bgColor=proj.bgColor||'#c0c0ff';bgColor2=proj.bgColor2||'#ffffff';
       document.getElementById('bg-color').value=bgColor;document.getElementById('bg-color2').value=bgColor2;
       document.querySelectorAll('.bgopt').forEach(o=>o.classList.toggle('act',o.dataset.bg===bgMode));
       renderBg();
@@ -805,6 +831,16 @@ function openExportDialog(){document.getElementById('export-dialog').classList.a
 document.getElementById('export-cancel').addEventListener('click',()=>document.getElementById('export-dialog').classList.remove('open'));
 document.getElementById('export-confirm').addEventListener('click',()=>{const name=(document.getElementById('export-filename').value.trim()||'task-paint').replace(/\.png$/i,'');document.getElementById('export-dialog').classList.remove('open');doExport(name);});
 document.getElementById('export-filename').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('export-confirm').click();if(e.key==='Escape')document.getElementById('export-dialog').classList.remove('open');});
+document.getElementById('save-proj-cancel').addEventListener('click',()=>document.getElementById('save-proj-dialog').classList.remove('open'));
+document.getElementById('save-proj-confirm').addEventListener('click',()=>{
+  const name=document.getElementById('proj-filename').value.trim()||'my-project';
+  document.getElementById('save-proj-dialog').classList.remove('open');
+  doSaveProject(name);
+});
+document.getElementById('proj-filename').addEventListener('keydown',e=>{
+  if(e.key==='Enter')document.getElementById('save-proj-confirm').click();
+  if(e.key==='Escape')document.getElementById('save-proj-dialog').classList.remove('open');
+});
 
 // ── canvas render ────────────────────────────────
 function drawBg(ctx,W,H){if(bgMode==='white'){ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);}else if(bgMode==='black'){ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);}else if(bgMode==='color'){ctx.fillStyle=bgColor;ctx.fillRect(0,0,W,H);}else if(bgMode==='gradient'){const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,bgColor);g.addColorStop(1,bgColor2);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}else if(bgMode==='checker'){const sz=16;for(let y=0;y<H;y+=sz)for(let x=0;x<W;x+=sz){ctx.fillStyle=((x/sz+y/sz)%2===0)?'#b0b0b0':'#d0d0d0';ctx.fillRect(x,y,sz,sz);}}else if(bgMode==='grid'){ctx.fillStyle='#e8e8e8';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#aaa';ctx.lineWidth=1;for(let x=0;x<=W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=0;y<=H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}}else if(bgMode==='dots'){ctx.fillStyle='#e8e8e8';ctx.fillRect(0,0,W,H);ctx.fillStyle='#888';for(let y=8;y<H;y+=16)for(let x=8;x<W;x+=16){ctx.beginPath();ctx.arc(x,y,1,0,Math.PI*2);ctx.fill();}}else if(bgMode==='lines'){ctx.fillStyle='#e8e8e8';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#999';ctx.lineWidth=1;for(let y=16;y<H;y+=16){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}}else{const sz=16;for(let y=0;y<H;y+=sz)for(let x=0;x<W;x+=sz){ctx.fillStyle=((x/sz+y/sz)%2===0)?'#b0b0b0':'#d0d0d0';ctx.fillRect(x,y,sz,sz);}}}

@@ -159,7 +159,7 @@ body{background:#888;display:flex;flex-direction:column;font-family:'VT323','Not
     </div>
     <div class="psec" id="text-props" style="display:none">
       <div class="plbl">TEXT</div>
-      <div class="proprow"><span class="proplbl">SIZE</span><input type="number" class="propinp" id="text-size" value="24" min="8" max="200"></div>
+      <div class="proprow"><span class="proplbl">SIZE</span><input type="number" class="propinp" id="text-size" value="12" min="8" max="200"></div>
       <div class="proprow"><span class="proplbl">BOLD</span><input type="checkbox" id="text-bold"><span class="proplbl" style="margin-left:6px;">ITALIC</span><input type="checkbox" id="text-italic"></div>
       <div class="proprow"><span class="proplbl">BG</span><input type="checkbox" id="text-bg"><input type="color" id="text-bg-color" value="#ffff00" style="width:22px;height:18px;margin-left:4px;padding:0;border:1px solid #808080;cursor:pointer;"></div>
     </div>
@@ -363,7 +363,7 @@ function mergeSelected(){
 function mkEl(type,extra={}){
   const id=nextId++;
   const el={id,type,x:80+Math.random()*200,y:60+Math.random()*160,w:type==='text'?160:type==='image'?130:80,h:type==='text'?44:type==='image'?110:80,fillColor,strokeColor,fillMode,strokeWidth,rotation:0,opacity:100,pinned:false,...extra};
-  if(type==='text'){el.text='text';el.fontSize=24;el.bold=false;el.italic=false;el.hasBg=false;el.bgColor='#ffff00';el.w=60;el.h=Math.ceil(24*1.4);}
+  if(type==='text'){el.text='text';el.fontSize=12;el.bold=false;el.italic=false;el.hasBg=false;el.bgColor='#ffff00';el.w=60;el.h=Math.ceil(24*1.4);}
   els.push(el);buildDom(el);selectOne(id,false);
   if(type==='text')startInlineEdit(id);
   updCnt();
@@ -392,6 +392,7 @@ function buildDom(el){
       if(el.type==='text'&&editingId===null){
         if(selIds.has(el.id)){
           // already selected: if mouse moves more than 4px → drag, else → edit on mouseup
+          window._lastTextClickPos={x:e.clientX,y:e.clientY};
           dragSt={ids:[...selIds].filter(id=>{const e2=els.find(x=>x.id===id);return e2&&!e2.pinned;}),sx:e.clientX,sy:e.clientY,origins:Object.fromEntries([...selIds].map(id=>{const e2=els.find(x=>x.id===id);return[id,{x:e2?e2.x:0,y:e2?e2.y:0}];})),pendingEdit:el.id};
           return;
         } else selectOne(el.id,false);
@@ -421,7 +422,38 @@ function startInlineEdit(id){
   dom.classList.add('editing');dom.classList.remove('sel');dom.querySelector('.ein').style.opacity='0';
   const ta=document.createElement('textarea');ta.id='ta-'+id;ta.className='text-inline-edit';ta.value=el.text;
   ta.style.cssText=`left:0;top:0;width:auto;min-width:20px;max-width:800px;min-height:${el.fontSize*1.2}px;font-size:${el.fontSize}px;font-weight:${el.bold?'bold':'400'};font-style:${el.italic?'italic':'normal'};color:${el.fillColor};background:${el.hasBg?el.bgColor:'transparent'};white-space:pre-wrap;overflow:hidden;`;
-  dom.appendChild(ta);ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
+  dom.appendChild(ta);ta.focus();
+  // try to position cursor at click position if available, else end
+  if(window._lastTextClickPos){
+    const pos=window._lastTextClickPos;
+    window._lastTextClickPos=null;
+    // use caretPositionFromPoint/caretRangeFromPoint to find cursor position
+    let charIdx=ta.value.length;
+    try{
+      // temporarily make ta visible for hit-testing
+      ta.style.opacity='1';
+      const range=document.caretRangeFromPoint?document.caretRangeFromPoint(pos.x,pos.y):null;
+      ta.style.opacity='';
+      if(range&&range.startContainer===ta){charIdx=range.startOffset;}
+      else{
+        // fallback: estimate from click x position using measureText-like approach
+        const rect=ta.getBoundingClientRect();
+        const relX=pos.x-rect.left;
+        const lines=ta.value.split('\n');
+        const relY=pos.y-rect.top;
+        const lineH=el.fontSize*1.2;
+        const lineIdx=Math.min(Math.floor(relY/lineH),lines.length-1);
+        let base=lines.slice(0,lineIdx).reduce((s,l)=>s+l.length+1,0);
+        // rough char estimation
+        const avgCharW=el.fontSize*0.6;
+        const charInLine=Math.min(Math.round(relX/avgCharW),lines[lineIdx].length);
+        charIdx=base+charInLine;
+      }
+    }catch(e){charIdx=ta.value.length;}
+    ta.setSelectionRange(charIdx,charIdx);
+  } else {
+    ta.setSelectionRange(ta.value.length,ta.value.length);
+  }
   function autoResize(){
     ta.style.height='auto';ta.style.width='auto';
     // measure natural size of textarea content

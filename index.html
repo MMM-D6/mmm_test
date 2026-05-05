@@ -747,6 +747,10 @@ body{
         <button class="pomo-btn" onclick="startPomo(90)" data-min="90">90m</button>
         <button class="pomo-btn" onclick="stopPomo()" style="color:#cc0000;">■</button>
       </div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:3px;">
+        <input type="checkbox" id="pomoAutoRepeat" style="cursor:pointer;"/>
+        <label for="pomoAutoRepeat" style="font-size:11px;color:#808080;cursor:pointer;">自动续</label>
+      </div>
       <div class="pomo-notify" id="pomoNotify">🔔 开启通知后台可用</div>
     </div>
   </div>
@@ -761,7 +765,7 @@ body{
     <div class="tab" onclick="showTab('dreams',this)">Spark</div>
     <div class="tab" onclick="showTab('notes',this)">卡片笔记</div>
     <div class="tab" onclick="showTab('settings',this)">设置</div>
-    <div class="tab" onclick="showTab('extensions',this)" style="color:#800080;border-color:#800080;">＋ 扩展</div>
+    <div class="tab" onclick="openExtModal()" style="color:#800080;border-color:#800080;">＋ 扩展</div>
   </div>
 
   <!-- MAIN -->
@@ -2444,6 +2448,8 @@ function tickPomo(){
     addXP(pomoMin,'番茄钟');
     showToast('🍅 '+pomoMin+'分钟完成！');
     sendNotification('番茄钟完成！','休息一下 ☕');
+    const _ar=document.getElementById('pomoAutoRepeat');
+    if(_ar&&_ar.checked) startPomo(pomoMin);
     return;
   }
   pomoSec=remaining;
@@ -4303,6 +4309,29 @@ function extDelete(id){
   extSave(extLoad().filter(e=>e.id!==id));
   renderExtensions();
 }
+function openExtModal(){
+  renderExtModal();
+  openModal('extModal');
+}
+
+function renderExtModal(){
+  const builtin=[{id:'builtin-task-paint',name:'Task Paint',url:'https://mmm-d6.github.io/mmm_test/task-paint.html',desc:'任务可视化画板'}];
+  const list=extLoad();
+  builtin.forEach(b=>{ if(!list.find(e=>e.id===b.id)) list.unshift(b); });
+  const el=document.getElementById('ext-modal-list'); if(!el) return;
+  if(!list.length){ el.innerHTML='<div style="color:#808080;font-size:13px;text-align:center;padding:12px;">暂无扩展</div>'; return; }
+  el.innerHTML=list.map(e=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--win-darker);background:var(--surface2);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:bold;color:#000080;">${e.name}</div>
+        ${e.desc?'<div style="font-size:11px;color:#808080;">'+e.desc+'</div>':''}
+      </div>
+      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')">打开</button>
+      ${(!e.id||!String(e.id).startsWith('builtin'))?'<button class="icon-btn" onclick="extDelete('+e.id+');renderExtModal();" style="color:#cc0000;">✕</button>':''}
+    </div>
+  `).join('');
+}
+
 function renderExtensions(){
   const list = extLoad();
   const el = document.getElementById('ext-list');
@@ -4344,6 +4373,25 @@ function renderExtensions(){
       <button class="pxl-btn primary" onclick="doCardExport('txt')">下载 .txt</button>
       <button class="pxl-btn" onclick="doCardExport('copy')">复制到剪切板</button>
       <button class="pxl-btn" onclick="closeModal('cardExportModal')">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Extensions Modal -->
+<div class="overlay" id="extModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="close-btn" onclick="closeModal('extModal')">✕</button>
+    <div class="modal-title">＋ 扩展功能</div>
+    <div id="ext-modal-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+    <div style="border-top:1px solid var(--win-darker);padding-top:12px;">
+      <div style="font-size:11px;color:#808080;margin-bottom:6px;">添加新扩展</div>
+      <div class="form-row"><input class="form-input" id="ext-name-input" placeholder="名称"/></div>
+      <div class="form-row"><input class="form-input" id="ext-url-input" placeholder="URL"/></div>
+      <div class="form-row"><input class="form-input" id="ext-desc-input" placeholder="描述（可选）"/></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="pxl-btn primary" onclick="extAdd();renderExtModal();">添加</button>
+        <button class="pxl-btn" onclick="closeModal('extModal')">关闭</button>
+      </div>
     </div>
   </div>
 </div>

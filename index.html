@@ -2567,6 +2567,17 @@ function newCard(threadId){
   document.getElementById('typeQuote').checked=true;
   document.getElementById('quoteRow').style.display='block';
   document.getElementById('bodyLabel').textContent='我的想法 / 评注';
+  // 初始化标签行位置（Quote 在 body 前，Idea 在 body 后）
+  const _isQ2=document.getElementById('typeQuote').checked;
+  const _modal=document.querySelector('#cardModal .modal');
+  const _tagsRow=document.getElementById('cardTagsRow');
+  const _bodyRow=document.getElementById('cardBodyRow');
+  if(_isQ2){
+    _modal.insertBefore(_tagsRow, _bodyRow);
+  } else {
+    const _btns=_modal.querySelector('.modal-btns');
+    _modal.insertBefore(_tagsRow, _btns);
+  }
   openModal('cardModal');
   setTimeout(()=>document.getElementById('cardQuote').focus(),100);
 }
@@ -2578,6 +2589,18 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('quoteRow').style.display=isQ?'block':'none';
       document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
       if(!isQ) setTimeout(()=>document.getElementById('cardBody').focus(),50);
+      // Quote: 标签行在 body 前；Idea: 标签行在 body 后
+      const modal=document.querySelector('#cardModal .modal');
+      const tagsRow=document.getElementById('cardTagsRow');
+      const bodyRow=document.getElementById('cardBodyRow');
+      if(isQ){
+        // 把标签行移到 body 行前
+        modal.insertBefore(tagsRow, bodyRow);
+      } else {
+        // 把标签行移到 body 行后（modal-btns 前）
+        const btns=modal.querySelector('.modal-btns');
+        modal.insertBefore(tagsRow, btns);
+      }
     });
   });
 });
@@ -2613,6 +2636,12 @@ function editCard(id){
   document.getElementById('typeIdea').checked=!isQ;
   document.getElementById('quoteRow').style.display=isQ?'block':'none';
   document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
+  const _isQ3=document.getElementById('typeQuote').checked;
+  const _modal3=document.querySelector('#cardModal .modal');
+  const _tagsRow3=document.getElementById('cardTagsRow');
+  const _bodyRow3=document.getElementById('cardBodyRow');
+  if(_isQ3){ _modal3.insertBefore(_tagsRow3, _bodyRow3); }
+  else { const _btns3=_modal3.querySelector('.modal-btns'); _modal3.insertBefore(_tagsRow3, _btns3); }
   openModal('cardModal');
 }
 
@@ -2867,6 +2896,9 @@ function renderCards(){
         if((ch.tags||[]).length){ const t=document.createElement('div'); t.className='card-tags'; t.innerHTML=ch.tags.map(function(tg){ return '<span class="card-tag">'+tg+'</span>'; }).join(''); cWrap.appendChild(t); }
         const cActs=document.createElement('div'); cActs.className='card-actions';
         const cEdit=document.createElement('button'); cEdit.className='card-action-btn'; cEdit.textContent='[EDIT]'; cEdit.onclick=function(){ editCard(ch.id); }; cActs.appendChild(cEdit);
+        const cDetach=document.createElement('button'); cDetach.className='card-action-btn'; cDetach.textContent='↗ 独立'; cDetach.title='转为独立卡片并链接主卡'; cDetach.style.color='#0066cc';
+        (function(chId,pId){ cDetach.onclick=function(){ detachFromThread(chId,pId); }; })(ch.id, c.id);
+        cActs.appendChild(cDetach);
         const cTs=document.createElement('span'); cTs.className='card-ts'; cTs.textContent=fmtDT(ch.createdAt); cActs.appendChild(cTs);
         const cDel=document.createElement('button'); cDel.className='card-action-btn'; cDel.style.color='#e94560'; cDel.textContent='✕'; cDel.onclick=function(){ deleteCard(ch.id); }; cActs.appendChild(cDel);
         cWrap.appendChild(cActs);
@@ -2881,6 +2913,18 @@ function renderCards(){
       list.appendChild(tWrap);
     }
   });
+}
+
+function detachFromThread(childId, parentId){
+  const cards=S.cards||[];
+  const child=cards.find(c=>c.id==childId);
+  const parent=cards.find(c=>c.id==parentId);
+  if(!child||!parent) return;
+  child.threadId=null; // 移出串
+  if(!parent.links) parent.links=[];
+  if(!parent.links.includes(childId)) parent.links.push(childId); // 改为 link
+  saveState(); renderCards();
+  showToast('已转为独立卡片并链接');
 }
 
 function exportCards(){
@@ -4194,11 +4238,11 @@ function doChangePassword(){
       <label class="form-label">Quote 原文</label>
       <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="cardBodyRow">
       <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
       <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="cardTagsRow">
       <label class="form-label">标签（逗号分隔）</label>
       <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
     </div>

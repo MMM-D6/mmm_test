@@ -2922,7 +2922,9 @@ function detachFromThread(childId, parentId){
   if(!child||!parent) return;
   child.threadId=null; // 移出串
   if(!parent.links) parent.links=[];
-  if(!parent.links.includes(childId)) parent.links.push(childId); // 改为 link
+  if(!parent.links.includes(childId)) parent.links.push(childId);
+  if(!child.links) child.links=[];
+  if(!child.links.includes(parentId)) child.links.push(parentId); // 双向 link
   saveState(); renderCards();
   showToast('已转为独立卡片并链接');
 }

@@ -2932,7 +2932,25 @@ function openCardExportModal(cardId){
   mkOpt('solo','仅此卡片',true);
   var children=cards.filter(function(c){return c.threadId==String(cardId);});
   if(children.length) mkOpt('thread','此卡片 + 串（共'+(children.length+1)+'张）',false);
-  if((card.links||[]).length) mkOpt('links','此卡片 + 所有链接（共'+((card.links||[]).length+1)+'张）',false);
+  if((card.links||[]).length){
+    mkOpt('links','此卡片 + 所有链接（共'+((card.links||[]).length+1)+'张）',false);
+    // 检查这些链接卡片里有没有自己的串
+    var linkedCards=(card.links||[]).map(function(lid){return cards.find(function(c){return c.id===lid;});}).filter(Boolean);
+    var linkedWithThread=linkedCards.filter(function(lc){return cards.some(function(c){return c.threadId==String(lc.id);});});
+    if(linkedWithThread.length){
+      var hint=document.createElement('div');
+      hint.style.cssText='margin-left:20px;margin-top:4px;';
+      var chk=document.createElement('input');
+      chk.type='checkbox'; chk.id='expLinksIncThread';
+      chk.style.cursor='pointer';
+      var lbl2=document.createElement('label');
+      lbl2.htmlFor='expLinksIncThread';
+      lbl2.style.cssText='font-size:12px;color:#800080;cursor:pointer;margin-left:6px;';
+      lbl2.textContent='同时包含链接卡片的串（'+linkedWithThread.length+'张链接卡片有串）';
+      hint.appendChild(chk); hint.appendChild(lbl2);
+      opts.appendChild(hint);
+    }
+  }
   openModal('cardExportModal');
 }
 
@@ -2950,7 +2968,16 @@ function doCardExport(method){
     exportList=[card].concat(cards.filter(function(c){return c.threadId==String(_expCardId);}));
   } else if(scope==='links'){
     var linked=(card.links||[]).map(function(lid){return cards.find(function(c){return c.id===lid;});}).filter(Boolean);
-    exportList=[card].concat(linked);
+    var incThread=document.getElementById('expLinksIncThread');
+    var withLinkedThreads=incThread&&incThread.checked;
+    var expanded=[];
+    linked.forEach(function(lc){
+      expanded.push(lc);
+      if(withLinkedThreads){
+        cards.filter(function(c){return c.threadId==String(lc.id);}).forEach(function(tc){expanded.push(tc);});
+      }
+    });
+    exportList=[card].concat(expanded);
   } else {
     exportList=[card];
   }

@@ -2854,22 +2854,28 @@ function renderCards(){
     delBtn.textContent='✕';
     delBtn.style.color='#e94560';
     delBtn.onclick=function(){ deleteCard(c.id); };
-    // 串按钮
+    // 串按钮：直接新建子卡
     const threadBtn=document.createElement('button');
     threadBtn.className='card-action-btn';
     threadBtn.style.color='#800080';
     const _children=allCards.filter(x=>x.threadId==String(c.id));
     const _tOpen=!!c.threadOpen;
     threadBtn.textContent='✦ 串'+(_children.length?'('+_children.length+')':'');
-    threadBtn.onclick=function(){
-      c.threadOpen=!c.threadOpen;
-      if(c.threadOpen && _children.length===0){ newCard(String(c.id)); }
-      else renderCards();
-    };
+    threadBtn.title=_children.length?'添加到串':'开启串';
+    threadBtn.onclick=function(){ newCard(String(c.id)); };
+    // 展开/折叠箭头（只在有子卡时显示）
+    const threadToggle=document.createElement('button');
+    threadToggle.className='card-action-btn';
+    threadToggle.style.cssText='color:#800080;padding:0 2px;font-size:10px;';
+    threadToggle.textContent=_tOpen?'▲':'▼';
+    threadToggle.title=_tOpen?'折叠串':'展开串';
+    threadToggle.style.display=_children.length?'':'none';
+    threadToggle.onclick=function(){ c.threadOpen=!c.threadOpen; renderCards(); };
     acts.appendChild(editBtn);
     acts.appendChild(linkBtn);
     acts.appendChild(expBtn);
     acts.appendChild(threadBtn);
+    acts.appendChild(threadToggle);
     acts.appendChild(ts);
     acts.appendChild(delBtn);
     wrap.appendChild(acts);
@@ -2879,8 +2885,8 @@ function renderCards(){
     panel.className='card-link-panel';
     wrap.appendChild(panel);
     list.appendChild(wrap);
-    // 串展开区
-    if(_tOpen||_children.length>0){
+    // 串展开区（默认折叠，只在 threadOpen 时显示）
+    if(_tOpen && _children.length>0){
       const tWrap=document.createElement('div');
       tWrap.style.cssText='margin-left:18px;border-left:3px solid #d0a0ff;padding-left:10px;margin-bottom:4px;';
       _children.forEach(function(ch){
@@ -2891,8 +2897,18 @@ function renderCards(){
         cType.className='card-note-type';
         cType.textContent=ch.type==='quote'?'QUOTE':'IDEA';
         cWrap.appendChild(cType);
-        if(ch.quote){ const q=document.createElement('div'); q.className='card-quote'; q.innerHTML=applyHlToText(ch.quote,ch.quoteHl); cWrap.appendChild(q); }
-        if(ch.body){ const b=document.createElement('div'); b.className='card-body'; b.innerHTML=applyHlToText(ch.body,ch.bodyHl); cWrap.appendChild(b); }
+        if(ch.quote){
+          const q=document.createElement('div'); q.className='card-quote';
+          q.innerHTML=applyHlToText(ch.quote,ch.quoteHl);
+          (function(cid){ q.addEventListener('mouseup',function(e){ onCardSelect(e,cid,'quote'); }); })(ch.id);
+          cWrap.appendChild(q);
+        }
+        if(ch.body){
+          const b=document.createElement('div'); b.className='card-body';
+          b.innerHTML=applyHlToText(ch.body,ch.bodyHl);
+          (function(cid){ b.addEventListener('mouseup',function(e){ onCardSelect(e,cid,'body'); }); })(ch.id);
+          cWrap.appendChild(b);
+        }
         if((ch.tags||[]).length){ const t=document.createElement('div'); t.className='card-tags'; t.innerHTML=ch.tags.map(function(tg){ return '<span class="card-tag">'+tg+'</span>'; }).join(''); cWrap.appendChild(t); }
         const cActs=document.createElement('div'); cActs.className='card-actions';
         const cEdit=document.createElement('button'); cEdit.className='card-action-btn'; cEdit.textContent='[EDIT]'; cEdit.onclick=function(){ editCard(ch.id); }; cActs.appendChild(cEdit);
@@ -2904,12 +2920,7 @@ function renderCards(){
         cWrap.appendChild(cActs);
         tWrap.appendChild(cWrap);
       });
-      const addBtn=document.createElement('button');
-      addBtn.className='card-action-btn';
-      addBtn.style.cssText='color:#800080;margin:4px 0;font-size:11px;';
-      addBtn.textContent='+ 在串中添加卡片';
-      addBtn.onclick=function(){ newCard(String(c.id)); };
-      tWrap.appendChild(addBtn);
+
       list.appendChild(tWrap);
     }
   });

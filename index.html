@@ -1586,8 +1586,8 @@ function renderTasks(){
     html += '</div>';
   });
 
-  // standalone todos
-  const standalone = allTodos.filter(t=>!t.projectId);
+  // standalone todos: 未完成在上，已完成在下
+  const standalone = allTodos.filter(t=>!t.projectId).sort((a,b)=>{ if(a.done===b.done) return 0; return a.done?1:-1; });
   standalone.forEach(t=>{
     html += '<div class="task-card '+(t.done?'done':'')+'" style="border-left-color:#000080;">';
     html += '<div class="task-top">';
@@ -1610,7 +1610,7 @@ function renderTasks(){
   });
 
   // non-task items — same checkbox logic as regular tasks
-  const nontasks = tasks.filter(t=>t.type==='nontask');
+  const nontasks = tasks.filter(t=>t.type==='nontask').sort((a,b)=>{ if(a.done===b.done) return 0; return a.done?1:-1; });
   nontasks.forEach(t=>{
     html += '<div class="task-card'+(t.done?' done':'')+'" style="border-left-color:#800080;">';
     html += '<div class="task-top">';

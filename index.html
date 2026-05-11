@@ -690,7 +690,7 @@ body{
   <!-- TOP BAR -->
   <div class="topbar">
     <div class="char-panel">
-      <div class="avatar-frame" onclick="document.getElementById('avatarInput').click()" title="点击更换头像">
+      <div class="avatar-frame">
         <div class="avatar-default" id="avatarDefault">
           <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">
             <!-- Win95 style user icon -->
@@ -723,7 +723,7 @@ body{
         </div>
         <img id="avatarImg" style="display:none;" alt="avatar"/>
       </div>
-      <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="loadAvatar(this)"/>
+
       <div class="char-info">
         <input class="char-name" id="charName" value="MMM" spellcheck="false"/>
         <div class="level-row">
@@ -1096,9 +1096,7 @@ body{
     <div class="form-row"><label class="form-label">描述</label><textarea class="form-textarea" id="dreamText" rows="4" placeholder="描述这个愿景，越具体越好..."></textarea></div>
     <div class="form-row">
       <label class="form-label">图片（可选）</label>
-      <label class="upload-btn">选择图片<br/><span id="dreamImgName" style="font-size:11px;">未选择</span><input type="file" id="dreamImgInput" accept="image/*" style="display:none" onchange="previewDreamImg(this)"/></label>
-      <img id="dreamImgPreview" style="display:none;max-height:120px;margin-top:6px;border:1px solid var(--border);border-radius:4px;"/>
-      <button id="dreamImgClearBtn" class="pxl-btn" onclick="clearDreamImg()" style="display:none;margin-top:4px;font-size:10px;">✕ 清除图片</button>
+
     </div>
     <div class="form-row">
       <label class="form-label">归入集合（可选）</label>
@@ -1167,7 +1165,7 @@ let S = {
   tasks:[], journal:[], dreams:[], cards:[], events:[], ganttPos:{}, ganttNotes:{},
   habits:[], checkins:{}, energyTags:[], dreamGroups:[],
   theme:{}, nextId:1,
-  avatar:null, bgImg:null
+  avatar:null
 };
 
 let undoStack=[], undoTimer=null;
@@ -1916,27 +1914,7 @@ function rcDelReply(idx){
 // ═══════════════════════════════════════
 // LINK PANEL — completely separate, static DOM, no re-render on input
 // ═══════════════════════════════════════
-function previewDreamImg(input){
-  const f=input.files[0]; if(!f) return;
-  document.getElementById('dreamImgName').textContent=f.name;
-  const r=new FileReader();
-  r.onload=e=>{
-    dreamImgData=e.target.result;
-    const prev=document.getElementById('dreamImgPreview');
-    prev.src=e.target.result; prev.style.display='block';
-    document.getElementById('dreamImgClearBtn').style.display='block';
-  };
-  r.readAsDataURL(f);
-}
 
-function clearDreamImg(){
-  dreamImgData=null;
-  const prev=document.getElementById('dreamImgPreview');
-  prev.src=''; prev.style.display='none';
-  document.getElementById('dreamImgClearBtn').style.display='none';
-  document.getElementById('dreamImgName').textContent='未选择';
-  document.getElementById('dreamImgInput').value='';
-}
 
 function openDreamModal(editId){
   const d = editId ? (S.dreams||[]).find(x=>x.id==editId) : null;
@@ -1945,14 +1923,6 @@ function openDreamModal(editId){
   document.getElementById('dreamTitle').value = d?d.title:'';
   document.getElementById('dreamText').value = d?d.text:'';
   document.getElementById('dreamTags').value = d?(d.tags||[]).join(', '):'';
-  // image
-  dreamImgData = d&&d.img ? d.img : null;
-  const prev=document.getElementById('dreamImgPreview');
-  const clearBtn=document.getElementById('dreamImgClearBtn');
-  if(d&&d.img){ prev.src=d.img; prev.style.display='block'; clearBtn.style.display='block'; }
-  else { prev.style.display='none'; clearBtn.style.display='none'; }
-  document.getElementById('dreamImgName').textContent='未选择';
-  document.getElementById('dreamImgInput').value='';
   // group selector
   const sel=document.getElementById('dreamGroupSel');
   sel.innerHTML='<option value="">无（不归入集合）</option>'+
@@ -1968,7 +1938,6 @@ function saveDream(){
   const tags=document.getElementById('dreamTags').value.split(',').map(s=>s.trim()).filter(Boolean);
   const groupId=parseInt(document.getElementById('dreamGroupSel').value)||null;
   const editId=document.getElementById('editDreamId').value;
-  const imgToSave = dreamImgData; // null means no image (or cleared)
   if(editId){
     const d=(S.dreams||[]).find(x=>x.id==editId); if(!d) return;
     d.title=title; d.text=text; d.tags=tags; d.groupId=groupId;
@@ -1978,7 +1947,6 @@ function saveDream(){
     S.dreams.unshift({id:S.nextId++,title,text,tags,groupId,img:imgToSave,createdAt:new Date().toISOString()});
     addXP(5,'梦想');
   }
-  dreamImgData=null;
   saveState(); closeModal('dreamModal'); renderDreams();
 }
 
@@ -2520,18 +2488,7 @@ function resetTheme(){
 }
 
 // ═══════════════════════════════════════
-// BG
-// ═══════════════════════════════════════
-function loadBg(input){
-  const f=input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=e=>{ S.bgImg=e.target.result; applyBg(); saveState(); };
-  r.readAsDataURL(f);
-}
-function applyBg(){
-  if(S.bgImg){ document.body.style.backgroundImage='url('+S.bgImg+')'; document.body.style.backgroundSize='cover'; }
-}
-function clearBg(){ S.bgImg=null; document.body.style.backgroundImage=''; saveState(); }
+
 
 // ═══════════════════════════════════════
 // PWA INSTALL
@@ -3066,12 +3023,7 @@ function doCardExport(method){
   closeModal('cardExportModal');
 }
 
-function loadAvatar(input){
-  const f=input.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=e=>{ S.avatar=e.target.result; applyAvatar(); saveState(); };
-  r.readAsDataURL(f);
-}
+
 function applyAvatar(){
   if(S.avatar){
     document.getElementById('avatarImg').src=S.avatar;
@@ -4154,7 +4106,7 @@ function ganttAutoShift(){
 function renderAll(){
   ganttAutoShift();
   document.getElementById('charName').value=S.charName;
-  updateXPUI(); applyAvatar(); loadTheme(); applyBg();
+  updateXPUI(); applyAvatar(); loadTheme();
   renderTasks(); renderJournal(); renderDreams(); renderCards();
 }
 

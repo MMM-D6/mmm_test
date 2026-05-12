@@ -953,7 +953,7 @@ body{
       <label class="form-label" style="font-family:Arial;">笔记</label>
       <textarea class="form-textarea" id="engCardNote" rows="3" placeholder="随便写点什么..." style="font-family:Arial,sans-serif;font-size:15px;color:#111;background:#fff;"></textarea>
     </div>
-    <div class="modal-btns" style="order:5;">
+    <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('engCardModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveEngCard()">保存</button>
     </div>
@@ -2515,8 +2515,6 @@ function newCard(threadId){
   document.getElementById('bodyLabel').textContent='我的想法 / 评注';
   // 初始化标签行位置（用 order，不移动 DOM）
   const _isQ2=document.getElementById('typeQuote').checked;
-  document.getElementById('cardTagsRow').style.order=_isQ2?'2':'4';
-  document.getElementById('cardBodyRow').style.order='3';
   openModal('cardModal');
   setTimeout(()=>document.getElementById('cardQuote').focus(),100);
 }
@@ -2528,9 +2526,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('quoteRow').style.display=isQ?'block':'none';
       document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
       if(!isQ) setTimeout(()=>document.getElementById('cardBody').focus(),50);
-      // Quote: 标签在 body 前；Idea: 标签在 body 后（用 order 控制，不移动 DOM）
-      document.getElementById('cardTagsRow').style.order=isQ?'2':'4';
-      document.getElementById('cardBodyRow').style.order=isQ?'3':'3';
+      // Quote: tags 在 body 前（HTML 默认）；Idea: tags 移到 body 后
+      const modal=document.querySelector('#cardModal .modal');
+      const tagsRow=document.getElementById('cardTagsRow');
+      const bodyRow=document.getElementById('cardBodyRow');
+      const btns=modal.querySelector('.modal-btns');
+      if(isQ){ modal.insertBefore(tagsRow, bodyRow); }
+      else { modal.insertBefore(tagsRow, btns); }
     });
   });
 });
@@ -2567,8 +2569,6 @@ function editCard(id){
   document.getElementById('quoteRow').style.display=isQ?'block':'none';
   document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
   const _isQ3=document.getElementById('typeQuote').checked;
-  document.getElementById('cardTagsRow').style.order=_isQ3?'2':'4';
-  document.getElementById('cardBodyRow').style.order='3';
   openModal('cardModal');
 }
 
@@ -4152,7 +4152,7 @@ function doChangePassword(){
 <!-- FLEETING MODAL -->
 <!-- CARD MODAL -->
 <div class="overlay" id="cardModal">
-  <div class="modal" style="max-width:620px;max-height:92vh;display:flex;flex-direction:column;">
+  <div class="modal" style="max-width:620px;max-height:92vh;overflow-y:auto;">
     <button class="close-btn" onclick="closeModal('cardModal')">✕</button>
     <div class="modal-title" id="cardModalTitle">新建卡片</div>
     <input type="hidden" id="editCardId"/>
@@ -4169,17 +4169,17 @@ function doChangePassword(){
         </label>
       </div>
     </div>
-    <div class="form-row" id="quoteRow" style="order:1;">
+    <div class="form-row" id="quoteRow">
       <label class="form-label">Quote 原文</label>
       <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
     </div>
-    <div class="form-row" id="cardBodyRow" style="order:3;">
-      <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
-      <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
-    </div>
-    <div class="form-row" id="cardTagsRow" style="order:2;">
+    <div class="form-row" id="cardTagsRow">
       <label class="form-label">标签（逗号分隔）</label>
       <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
+    </div>
+    <div class="form-row" id="cardBodyRow">
+      <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
+      <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
     </div>
     <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('cardModal')">取消</button>

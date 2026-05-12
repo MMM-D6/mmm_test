@@ -923,6 +923,11 @@ body{
     </div>
 
     <!-- SETTINGS -->
+    <div class="section" id="sec-extensions">
+      <div style="padding:4px 0 8px;font-size:12px;font-weight:bold;color:#800080;letter-spacing:1px;">＋ 扩展功能</div>
+      <div style="font-size:12px;color:#808080;margin-bottom:12px;">独立功能页面，点击在新标签页打开。</div>
+      <div id="ext-list"></div>
+    </div>
     <div class="section" id="sec-settings">
       <div class="setting-card" style="max-width:400px;">
         <div class="setting-title">🔔 通知 &amp; PWA</div>
@@ -1351,7 +1356,8 @@ function showTab(tab, el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('sec-'+tab).classList.add('active');
+  const _secEl=document.getElementById('sec-'+tab);
+  if(_secEl) _secEl.classList.add('active');
   if(tab==='tasks') renderTasks();
   if(tab==='journal') renderJournal();
   if(tab==='dreams') renderDreams();

@@ -269,10 +269,9 @@ body{
    MODAL — Win95 대화창
    ══════════════════════════════════════ */
 .overlay{
-  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  display:none;position:fixed;inset:0;
   background:rgba(0,0,0,.4);
-  z-index:1000;align-items:center;justify-content:center;padding:16px;
-  box-sizing:border-box;
+  z-index:100;align-items:center;justify-content:center;padding:16px;
 }
 .overlay.open{display:flex;}
 .modal{
@@ -683,7 +682,7 @@ body{
   <!-- TOP BAR -->
   <div class="topbar">
     <div class="char-panel">
-      <div class="avatar-frame">
+      <div class="avatar-frame" >
         <div class="avatar-default" id="avatarDefault">
           <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">
             <!-- Win95 style user icon -->
@@ -716,7 +715,7 @@ body{
         </div>
         <img id="avatarImg" style="display:none;" alt="avatar"/>
       </div>
-
+      
       <div class="char-info">
         <input class="char-name" id="charName" value="MMM" spellcheck="false"/>
         <div class="level-row">
@@ -924,11 +923,6 @@ body{
     </div>
 
     <!-- SETTINGS -->
-    <div class="section" id="sec-extensions">
-      <div style="padding:4px 0 8px;font-size:12px;font-weight:bold;color:#800080;letter-spacing:1px;">＋ 扩展功能</div>
-      <div style="font-size:12px;color:#808080;margin-bottom:12px;">独立功能页面，点击在新标签页打开。</div>
-      <div id="ext-list"></div>
-    </div>
     <div class="section" id="sec-settings">
       <div class="setting-card" style="max-width:400px;">
         <div class="setting-title">🔔 通知 &amp; PWA</div>
@@ -1092,7 +1086,6 @@ body{
     <input type="hidden" id="editDreamId"/>
     <div class="form-row"><label class="form-label">标题</label><input class="form-input" id="dreamTitle" placeholder="这个梦想是..."/></div>
     <div class="form-row"><label class="form-label">描述</label><textarea class="form-textarea" id="dreamText" rows="4" placeholder="描述这个愿景，越具体越好..."></textarea></div>
-    <div class="form-row">
     <div class="form-row">
       <label class="form-label">归入集合（可选）</label>
       <select class="form-select" id="dreamGroupSel" style="width:100%;"></select>
@@ -1357,8 +1350,7 @@ function showTab(tab, el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  const _secEl=document.getElementById('sec-'+tab);
-  if(_secEl) _secEl.classList.add('active');
+  document.getElementById('sec-'+tab).classList.add('active');
   if(tab==='tasks') renderTasks();
   if(tab==='journal') renderJournal();
   if(tab==='dreams') renderDreams();
@@ -1580,7 +1572,7 @@ function renderTasks(){
     html += '</div>';
   });
 
-  // standalone todos: 未完成在上，已完成在下
+  // standalone todos
   const standalone = allTodos.filter(t=>!t.projectId).sort((a,b)=>{ if(a.done===b.done) return 0; return a.done?1:-1; });
   standalone.forEach(t=>{
     html += '<div class="task-card '+(t.done?'done':'')+'" style="border-left-color:#000080;">';
@@ -2484,16 +2476,8 @@ function resetTheme(){
 }
 
 // ═══════════════════════════════════════
-
-
-// ═══════════════════════════════════════
-// PWA INSTALL
-// ═══════════════════════════════════════
-let deferredInstall=null;
-window.addEventListener('beforeinstallprompt',e=>{
-  e.preventDefault(); deferredInstall=e;
-  document.getElementById('installBanner').classList.add('show');
-});
+// BG
+// ═══════════════════════════════════════);
 async function installPWA(){
   if(!deferredInstall) return;
   deferredInstall.prompt();
@@ -2520,8 +2504,17 @@ function newCard(threadId){
   document.getElementById('typeQuote').checked=true;
   document.getElementById('quoteRow').style.display='block';
   document.getElementById('bodyLabel').textContent='我的想法 / 评注';
-  // 初始化标签行位置（用 order，不移动 DOM）
+  // 初始化标签行位置（Quote 在 body 前，Idea 在 body 后）
   const _isQ2=document.getElementById('typeQuote').checked;
+  const _modal=document.querySelector('#cardModal .modal');
+  const _tagsRow=document.getElementById('cardTagsRow');
+  const _bodyRow=document.getElementById('cardBodyRow');
+  if(_isQ2){
+    _modal.insertBefore(_tagsRow, _bodyRow);
+  } else {
+    const _btns=_modal.querySelector('.modal-btns');
+    _modal.insertBefore(_tagsRow, _btns);
+  }
   openModal('cardModal');
   setTimeout(()=>document.getElementById('cardQuote').focus(),100);
 }
@@ -2533,13 +2526,18 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('quoteRow').style.display=isQ?'block':'none';
       document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
       if(!isQ) setTimeout(()=>document.getElementById('cardBody').focus(),50);
-      // Quote: tags 在 body 前（HTML 默认）；Idea: tags 移到 body 后
+      // Quote: 标签行在 body 前；Idea: 标签行在 body 后
       const modal=document.querySelector('#cardModal .modal');
       const tagsRow=document.getElementById('cardTagsRow');
       const bodyRow=document.getElementById('cardBodyRow');
-      const btns=modal.querySelector('.modal-btns');
-      if(isQ){ modal.insertBefore(tagsRow, bodyRow); }
-      else { modal.insertBefore(tagsRow, btns); }
+      if(isQ){
+        // 把标签行移到 body 行前
+        modal.insertBefore(tagsRow, bodyRow);
+      } else {
+        // 把标签行移到 body 行后（modal-btns 前）
+        const btns=modal.querySelector('.modal-btns');
+        modal.insertBefore(tagsRow, btns);
+      }
     });
   });
 });
@@ -2576,6 +2574,11 @@ function editCard(id){
   document.getElementById('quoteRow').style.display=isQ?'block':'none';
   document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
   const _isQ3=document.getElementById('typeQuote').checked;
+  const _modal3=document.querySelector('#cardModal .modal');
+  const _tagsRow3=document.getElementById('cardTagsRow');
+  const _bodyRow3=document.getElementById('cardBodyRow');
+  if(_isQ3){ _modal3.insertBefore(_tagsRow3, _bodyRow3); }
+  else { const _btns3=_modal3.querySelector('.modal-btns'); _modal3.insertBefore(_tagsRow3, _btns3); }
   openModal('cardModal');
 }
 
@@ -2999,7 +3002,6 @@ function doCardExport(method){
   }
   closeModal('cardExportModal');
 }
-
 
 function applyAvatar(){
   if(S.avatar){
@@ -4159,7 +4161,7 @@ function doChangePassword(){
 <!-- FLEETING MODAL -->
 <!-- CARD MODAL -->
 <div class="overlay" id="cardModal">
-  <div class="modal" style="max-width:620px;max-height:92vh;overflow-y:auto;">
+  <div class="modal" style="max-width:620px;max-height:92vh;display:flex;flex-direction:column;">
     <button class="close-btn" onclick="closeModal('cardModal')">✕</button>
     <div class="modal-title" id="cardModalTitle">新建卡片</div>
     <input type="hidden" id="editCardId"/>
@@ -4180,13 +4182,13 @@ function doChangePassword(){
       <label class="form-label">Quote 原文</label>
       <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
     </div>
-    <div class="form-row" id="cardTagsRow">
-      <label class="form-label">标签（逗号分隔）</label>
-      <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
-    </div>
     <div class="form-row" id="cardBodyRow">
       <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
       <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
+    </div>
+    <div class="form-row" id="cardTagsRow">
+      <label class="form-label">标签（逗号分隔）</label>
+      <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
     </div>
     <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('cardModal')">取消</button>

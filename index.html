@@ -953,7 +953,7 @@ body{
       <label class="form-label" style="font-family:Arial;">笔记</label>
       <textarea class="form-textarea" id="engCardNote" rows="3" placeholder="随便写点什么..." style="font-family:Arial,sans-serif;font-size:15px;color:#111;background:#fff;"></textarea>
     </div>
-    <div class="modal-btns">
+    <div class="modal-btns" style="order:5;">
       <button class="pxl-btn" onclick="closeModal('engCardModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveEngCard()">保存</button>
     </div>
@@ -2513,17 +2513,10 @@ function newCard(threadId){
   document.getElementById('typeQuote').checked=true;
   document.getElementById('quoteRow').style.display='block';
   document.getElementById('bodyLabel').textContent='我的想法 / 评注';
-  // 初始化标签行位置（Quote 在 body 前，Idea 在 body 后）
+  // 初始化标签行位置（用 order，不移动 DOM）
   const _isQ2=document.getElementById('typeQuote').checked;
-  const _modal=document.querySelector('#cardModal .modal');
-  const _tagsRow=document.getElementById('cardTagsRow');
-  const _bodyRow=document.getElementById('cardBodyRow');
-  if(_isQ2){
-    _modal.insertBefore(_tagsRow, _bodyRow);
-  } else {
-    const _btns=_modal.querySelector('.modal-btns');
-    _modal.insertBefore(_tagsRow, _btns);
-  }
+  document.getElementById('cardTagsRow').style.order=_isQ2?'2':'4';
+  document.getElementById('cardBodyRow').style.order='3';
   openModal('cardModal');
   setTimeout(()=>document.getElementById('cardQuote').focus(),100);
 }
@@ -2535,18 +2528,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('quoteRow').style.display=isQ?'block':'none';
       document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
       if(!isQ) setTimeout(()=>document.getElementById('cardBody').focus(),50);
-      // Quote: 标签行在 body 前；Idea: 标签行在 body 后
-      const modal=document.querySelector('#cardModal .modal');
-      const tagsRow=document.getElementById('cardTagsRow');
-      const bodyRow=document.getElementById('cardBodyRow');
-      if(isQ){
-        // 把标签行移到 body 行前
-        modal.insertBefore(tagsRow, bodyRow);
-      } else {
-        // 把标签行移到 body 行后（modal-btns 前）
-        const btns=modal.querySelector('.modal-btns');
-        modal.insertBefore(tagsRow, btns);
-      }
+      // Quote: 标签在 body 前；Idea: 标签在 body 后（用 order 控制，不移动 DOM）
+      document.getElementById('cardTagsRow').style.order=isQ?'2':'4';
+      document.getElementById('cardBodyRow').style.order=isQ?'3':'3';
     });
   });
 });
@@ -2583,11 +2567,8 @@ function editCard(id){
   document.getElementById('quoteRow').style.display=isQ?'block':'none';
   document.getElementById('bodyLabel').textContent=isQ?'我的想法 / 评注':'想法内容';
   const _isQ3=document.getElementById('typeQuote').checked;
-  const _modal3=document.querySelector('#cardModal .modal');
-  const _tagsRow3=document.getElementById('cardTagsRow');
-  const _bodyRow3=document.getElementById('cardBodyRow');
-  if(_isQ3){ _modal3.insertBefore(_tagsRow3, _bodyRow3); }
-  else { const _btns3=_modal3.querySelector('.modal-btns'); _modal3.insertBefore(_tagsRow3, _btns3); }
+  document.getElementById('cardTagsRow').style.order=_isQ3?'2':'4';
+  document.getElementById('cardBodyRow').style.order='3';
   openModal('cardModal');
 }
 
@@ -4188,15 +4169,15 @@ function doChangePassword(){
         </label>
       </div>
     </div>
-    <div class="form-row" id="quoteRow">
+    <div class="form-row" id="quoteRow" style="order:1;">
       <label class="form-label">Quote 原文</label>
       <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
     </div>
-    <div class="form-row" id="cardBodyRow">
+    <div class="form-row" id="cardBodyRow" style="order:3;">
       <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
       <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
     </div>
-    <div class="form-row" id="cardTagsRow">
+    <div class="form-row" id="cardTagsRow" style="order:2;">
       <label class="form-label">标签（逗号分隔）</label>
       <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
     </div>

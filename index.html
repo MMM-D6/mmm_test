@@ -855,7 +855,7 @@ body{
     <div class="tab" onclick="showTab('eng',this)">英语卡片</div>
     <div class="tab" onclick="showTab('dreams',this)">Spark</div>
     <div class="tab" onclick="showTab('notes',this)">卡片笔记</div>
-    <div class="tab" onclick="showTab('studio',this)">换装企划</div>
+    <div class="tab" onclick="showTab('studio',this)">Toolkit</div>
     <div class="tab" onclick="showTab('settings',this)">设置</div>
     <div class="tab" onclick="openExtModal()" style="color:#800080;border-color:#800080;">＋ 扩展</div>
   </div>
@@ -960,13 +960,13 @@ body{
       <div id="cardList"></div>
     </div>
 
-    <!-- STUDIO 换装企划 -->
+    <!-- STUDIO Toolkit -->
     <div class="section" id="sec-studio" style="overflow:hidden;display:none;height:100%;flex-direction:column;">
       <!-- Studio Sub-Tabs -->
       <div class="toolbar" style="padding:4px 8px;gap:4px;flex-shrink:0;">
-        <button class="pxl-btn studio-stab active" id="studio-tab-plan" onclick="studioTab('plan',this)">建模企划</button>
-        <button class="pxl-btn studio-stab" id="studio-tab-catmap" onclick="studioTab('catmap',this)">品类地图</button>
-        <button class="pxl-btn studio-stab" id="studio-tab-clo" onclick="studioTab('clo',this)">CLO 技术</button>
+        <button class="pxl-btn studio-stab active" id="studio-tab-plan" onclick="studioTab('plan',this)">Projects</button>
+        <button class="pxl-btn studio-stab" id="studio-tab-catmap" onclick="studioTab('catmap',this)">References</button>
+        <button class="pxl-btn studio-stab" id="studio-tab-clo" onclick="studioTab('clo',this)">Skills</button>
         <div style="flex:1;"></div>
         <button class="pxl-btn" onclick="studioExport()" style="font-size:11px;">📄 导出</button>
       </div>
@@ -999,14 +999,6 @@ body{
             <div style="flex:1;overflow-y:auto;padding:12px 14px;">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
                 <div class="form-row" style="margin:0;display:flex;flex-direction:column;gap:3px;">
-                  <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">品类</label>
-                  <input class="form-input" id="spd-f-cat" placeholder="TOP / DRESS / COAT..." oninput="planField('category',this.value)">
-                </div>
-                <div class="form-row" style="margin:0;display:flex;flex-direction:column;gap:3px;">
-                  <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">预计工期（天）</label>
-                  <input class="form-input" id="spd-f-days" type="number" min="1" placeholder="7" oninput="planField('days',this.value)">
-                </div>
-                <div class="form-row" style="margin:0;display:flex;flex-direction:column;gap:3px;">
                   <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">Deadline</label>
                   <input class="form-input" id="spd-f-ddl" type="date" oninput="planField('deadline',this.value)">
                 </div>
@@ -1017,6 +1009,14 @@ body{
                     <option value="high">高</option>
                     <option value="urgent">紧急</option>
                   </select>
+                </div>
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:11px;color:#808080;font-family:var(--font-ui);display:block;margin-bottom:4px;">Tags</label>
+                <div id="spd-ptags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;min-height:20px;"></div>
+                <div style="display:flex;gap:6px;">
+                  <input class="form-input" id="spd-ptag-inp" placeholder="添加 tag，回车确认..." style="flex:1;font-size:12px;" onkeydown="if(event.key==='Enter'){addPlanTag_();event.preventDefault();}">
+                  <button class="pxl-btn" onclick="addPlanTag_()" style="font-size:11px;">添加</button>
                 </div>
               </div>
               <div style="margin-bottom:10px;">
@@ -1048,8 +1048,9 @@ body{
         </div>
       </div>
 
-      <!-- PANEL: 品类地图 -->
+      <!-- PANEL: References 服装品类知识库 -->
       <div class="studio-panel" id="sp-catmap" style="display:none;flex:1;overflow:hidden;">
+        <!-- Left: category list -->
         <div style="width:160px;flex-shrink:0;border-right:2px solid var(--win-dark);background:var(--win-gray);display:flex;flex-direction:column;overflow:hidden;">
           <div style="padding:6px 8px;border-bottom:1px solid var(--win-darker);font-size:11px;color:#808080;display:flex;justify-content:space-between;align-items:center;font-family:var(--font-ui);">
             <span>品类</span>
@@ -1057,42 +1058,58 @@ body{
           </div>
           <div id="sp-cat-list" style="flex:1;overflow-y:auto;"></div>
         </div>
+        <!-- Right: entry detail -->
         <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-          <div style="padding:6px 14px;border-bottom:1px solid var(--win-darker);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-            <span id="sp-cat-name" style="font-size:13px;font-weight:bold;font-family:var(--font-ui);">选择品类</span>
-            <div style="display:flex;gap:6px;">
-              <button class="pxl-btn" onclick="addStyle_()" style="font-size:11px;">+ 款式</button>
-              <button class="pxl-btn" onclick="deleteCurrentCat_()" style="font-size:11px;border-color:#cc0000;color:#cc0000;">删除品类</button>
+          <div id="sp-ref-empty" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#808080;font-family:var(--font-ui);">选择或新建品类</div>
+          <div id="sp-ref-detail" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+            <div style="padding:8px 14px;border-bottom:1px solid var(--win-darker);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+              <div id="sp-ref-title" style="font-size:14px;font-weight:bold;font-family:var(--font-ui);"></div>
+              <button class="pxl-btn" onclick="deleteCurrentCat_()" style="font-size:11px;border-color:#cc0000;color:#cc0000;">删除</button>
             </div>
-          </div>
-          <div id="sp-styles-wrap" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
-          <div id="sp-cat-progress" style="padding:6px 14px;border-top:1px solid var(--win-darker);font-size:11px;color:#808080;display:flex;align-items:center;gap:8px;font-family:var(--font-ui);flex-shrink:0;">
-            <span id="sp-progress-txt">0 / 0</span>
-            <div style="flex:1;height:6px;background:var(--win-dark);border:1px solid var(--win-darker);overflow:hidden;">
-              <div id="sp-progress-fill" style="height:100%;background:#008000;transition:width .2s;width:0%;"></div>
+            <div style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">品类名称</label>
+                <input class="form-input" id="sp-ref-name" oninput="refField('name',this.value)" placeholder="例：Trench Coat">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">特征</label>
+                <textarea class="form-input" id="sp-ref-feature" rows="3" oninput="refField('feature',this.value)" placeholder="这个品类的核心特点、廓形、结构..." style="resize:vertical;"></textarea>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">关键词</label>
+                <div id="sp-ref-kw-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;min-height:18px;"></div>
+                <div style="display:flex;gap:6px;">
+                  <input class="form-input" id="sp-ref-kw-inp" placeholder="输入关键词，回车添加" style="flex:1;font-size:12px;" onkeydown="if(event.key==='Enter'){addRefKw_();event.preventDefault();}">
+                  <button class="pxl-btn" onclick="addRefKw_()" style="font-size:11px;">添加</button>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:#808080;font-family:var(--font-ui);">备注</label>
+                <textarea class="form-input" id="sp-ref-notes" rows="3" oninput="refField('notes',this.value)" placeholder="链接、参考来源、设计要点..." style="resize:vertical;"></textarea>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- PANEL: CLO 技术 -->
+      <!-- PANEL: Skills -->
       <div class="studio-panel" id="sp-clo" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div style="display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--win-darker);flex-shrink:0;align-items:center;flex-wrap:wrap;">
           <button class="pxl-btn studio-clo-filter active" id="clo-f-all" onclick="cloFilter_('all',this)" style="font-size:11px;">全部</button>
-          <button class="pxl-btn studio-clo-filter" id="clo-f-exploring" onclick="cloFilter_('exploring',this)" style="font-size:11px;">探索中</button>
-          <button class="pxl-btn studio-clo-filter" id="clo-f-mastered" onclick="cloFilter_('mastered',this)" style="font-size:11px;">已掌握</button>
-          <input class="form-input" id="clo-search-inp" placeholder="搜索..." oninput="renderClo_()" style="width:140px;margin-left:auto;font-size:12px;padding:3px 8px;">
-          <button class="pxl-btn primary" onclick="openNewCloModal()" style="font-size:11px;">+ 技术</button>
+          <button class="pxl-btn studio-clo-filter" id="clo-f-exploring" onclick="cloFilter_('exploring',this)" style="font-size:11px;">learning</button>
+          <button class="pxl-btn studio-clo-filter" id="clo-f-mastered" onclick="cloFilter_('mastered',this)" style="font-size:11px;">mastered</button>
+          <input class="form-input" id="clo-search-inp" placeholder="搜索技能..." oninput="renderClo_()" style="width:140px;margin-left:auto;font-size:12px;padding:3px 8px;">
+          <button class="pxl-btn primary" onclick="openNewCloModal()" style="font-size:11px;">+ 技能</button>
         </div>
         <div style="display:flex;flex:1;overflow:hidden;">
           <div id="sp-clo-list" style="flex:1;overflow-y:auto;"></div>
           <div style="width:140px;flex-shrink:0;border-left:2px solid var(--win-dark);background:var(--win-gray);padding:10px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;">
             <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:10px;color:#808080;font-family:var(--font-ui);">已掌握</div>
+              <div style="font-size:10px;color:#808080;font-family:var(--font-ui);">mastered</div>
               <div id="clo-stat-mastered" style="font-size:24px;font-weight:bold;color:#000080;font-family:var(--font-ui);">0</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:10px;color:#808080;font-family:var(--font-ui);">总计</div>
+              <div style="font-size:10px;color:#808080;font-family:var(--font-ui);">total</div>
               <div id="clo-stat-total" style="font-size:24px;font-weight:bold;font-family:var(--font-ui);">0</div>
             </div>
             <div style="height:1px;background:var(--win-darker);"></div>
@@ -4590,7 +4607,7 @@ function renderExtensions(){
 
 
 // ═══════════════════════════════════════════════════
-// STUDIO MODULE 换装企划
+// STUDIO MODULE — Toolkit
 // ═══════════════════════════════════════════════════
 let _studioActivePlan = null;
 let _studioActiveCat  = null;
@@ -4631,10 +4648,11 @@ function renderPlanList_() {
   if (!plans.length) { el.innerHTML = '<div style="padding:10px;font-size:12px;color:#808080;font-family:var(--font-ui);">暂无记录</div>'; return; }
   el.innerHTML = plans.map(p => {
     const priLabel = p.priority === 'urgent' ? '紧急' : p.priority === 'high' ? '高' : '';
+    const tagStr = (p.tags||[]).map(t=>`<span style="background:#000080;color:#fff;font-size:10px;padding:0 4px;font-family:var(--font-ui);">${t}</span>`).join('');
     return `<div class="sp-plan-row${_studioActivePlan===p.id?' active':''}" onclick="selectPlan_('${p.id}')">
       <div class="sp-plan-row-name">${p.name||'（未命名）'}</div>
       <div class="sp-plan-row-meta">
-        ${p.category?`<span>${p.category}</span>`:''}
+        ${tagStr}
         <span class="sp-plan-badge ${p.status||'todo'}">${p.status==='done'?'已完成':'待完成'}</span>
         ${priLabel?`<span class="sp-plan-badge ${p.priority}">${priLabel}</span>`:''}
         ${p.deadline?`<span>${p.deadline}</span>`:''}
@@ -4652,12 +4670,12 @@ function selectPlan_(id) {
   const det = document.getElementById('sp-plan-detail');
   det.style.display = 'flex';
   document.getElementById('spd-name').textContent = p.name || '';
-  document.getElementById('spd-cat').textContent  = p.category || '';
-  document.getElementById('spd-f-cat').value   = p.category  || '';
+  document.getElementById('spd-cat').textContent  = (p.tags||[]).join('  ');
   document.getElementById('spd-f-days').value  = p.days      || '';
   document.getElementById('spd-f-ddl').value   = p.deadline  || '';
   document.getElementById('spd-f-pri').value   = p.priority  || 'normal';
   document.getElementById('spd-f-notes').value = p.notes     || '';
+  renderPlanTagChips_(p);
   const models = p.models || ['','',''];
   ['a','b','c'].forEach((l,i) => {
     const b = document.getElementById('spd-model-'+l);
@@ -4674,9 +4692,8 @@ function selectPlan_(id) {
 function planField(field, val) {
   const p = (S.studioPlan||[]).find(x => x.id === _studioActivePlan); if (!p) return;
   p[field] = val;
-  if (field === 'category') { document.getElementById('spd-cat').textContent = val; }
   studioSave();
-  if (['name','category','status','priority','deadline'].includes(field)) renderPlanList_();
+  if (['name','status','priority','deadline'].includes(field)) renderPlanList_();
 }
 
 function setPlanStatus_(s) {
@@ -4710,6 +4727,31 @@ function renderPlanTechs_(p) {
   }).join('');
 }
 
+function renderPlanTagChips_(p) {
+  const el = document.getElementById('spd-ptags'); if (!el) return;
+  el.innerHTML = (p.tags||[]).map(t => {
+    const esc = t.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<span class="sp-tech-chip" style="background:#000080;color:#fff;border-color:#000060 #000040 #000040 #000060;">${t}<button class="sp-tech-del" style="color:#aaa;" onclick="removePlanTag_('${esc}')">×</button></span>`;
+  }).join('');
+  // keep header in sync
+  const hdr = document.getElementById('spd-cat');
+  if (hdr) hdr.textContent = (p.tags||[]).join('  ');
+}
+
+function addPlanTag_() {
+  const inp = document.getElementById('spd-ptag-inp'); if (!inp) return;
+  const val = inp.value.trim(); if (!val) return;
+  const p = (S.studioPlan||[]).find(x=>x.id===_studioActivePlan); if (!p) return;
+  if (!p.tags) p.tags=[];
+  if (!p.tags.includes(val)) { p.tags.push(val); studioSave(); renderPlanTagChips_(p); renderPlanList_(); }
+  inp.value='';
+}
+
+function removePlanTag_(tag) {
+  const p = (S.studioPlan||[]).find(x=>x.id===_studioActivePlan); if (!p) return;
+  p.tags = (p.tags||[]).filter(t=>t!==tag); studioSave(); renderPlanTagChips_(p); renderPlanList_();
+}
+
 function addTechFromList_() {
   const sel = document.getElementById('spd-tech-sel'); if (!sel || !sel.value) return;
   const p = (S.studioPlan||[]).find(x => x.id === _studioActivePlan); if (!p) return;
@@ -4736,12 +4778,11 @@ function openNewPlanModal() { openModal('studioNewPlanModal'); setTimeout(()=>do
 function createPlan_() {
   const name = document.getElementById('snp-name').value.trim();
   if (!name) { alert('请输入名称'); return; }
-  const p = { id:suid(), name, category:document.getElementById('snp-cat').value.trim(), status:'todo', priority:'normal', models:['','',''], techs:[], notes:'', days:'', deadline:'' };
+  const p = { id:suid(), name, tags:[], status:'todo', priority:'normal', models:['','',''], techs:[], notes:'', days:'', deadline:'' };
   if (!S.studioPlan) S.studioPlan = [];
   S.studioPlan.push(p); studioSave();
   closeModal('studioNewPlanModal');
   document.getElementById('snp-name').value = '';
-  document.getElementById('snp-cat').value  = '';
   renderPlanList_(); selectPlan_(p.id);
 }
 
@@ -4754,72 +4795,79 @@ function deletePlan_() {
   document.getElementById('sp-plan-detail').style.display = 'none';
 }
 
-// ── 品类地图 ──
+// ── References 服装品类知识库 ──
+let _studioActiveRef = null;
+
 function renderCatmap_() {
   const el = document.getElementById('sp-cat-list'); if (!el) return;
-  const catmap = S.studioCatmap || [];
-  el.innerHTML = catmap.map(cat => {
-    const done = (cat.styles||[]).filter(s=>s.done).length;
-    const total = (cat.styles||[]).length;
-    return `<div class="sp-cat-row${_studioActiveCat===cat.id?' active':''}" onclick="selectCat_('${cat.id}')">
-      <span>${cat.name||'未命名'}</span><span class="sp-cat-row-count">${done}/${total}</span>
-    </div>`;
-  }).join('');
-  renderStyles_();
+  const refs = S.studioCatmap || [];
+  el.innerHTML = refs.map(r => `
+    <div class="sp-cat-row${_studioActiveRef===r.id?' active':''}" onclick="selectRef_('${r.id}')">
+      <span>${r.name||'未命名'}</span>
+    </div>
+  `).join('') || '<div style="padding:10px;font-size:12px;color:#808080;font-family:var(--font-ui);">暂无品类</div>';
+  if (_studioActiveRef) renderRefDetail_();
 }
 
-function selectCat_(id) { _studioActiveCat = id; renderCatmap_(); }
+function selectRef_(id) {
+  _studioActiveRef = id;
+  renderCatmap_();
+  renderRefDetail_();
+}
 
-function renderStyles_() {
-  const wrap = document.getElementById('sp-styles-wrap'); if (!wrap) return;
-  const nameEl = document.getElementById('sp-cat-name');
-  const cat = (S.studioCatmap||[]).find(c => c.id === _studioActiveCat);
-  if (!cat) {
-    if (nameEl) nameEl.textContent = '选择品类';
-    wrap.innerHTML = '';
-    const pb = document.getElementById('sp-cat-progress');
-    if (pb) pb.style.display = 'none';
+function renderRefDetail_() {
+  const r = (S.studioCatmap||[]).find(c=>c.id===_studioActiveRef);
+  const emptyEl  = document.getElementById('sp-ref-empty');
+  const detailEl = document.getElementById('sp-ref-detail');
+  if (!r) {
+    if (emptyEl)  emptyEl.style.display  = 'flex';
+    if (detailEl) detailEl.style.display = 'none';
     return;
   }
-  if (nameEl) nameEl.textContent = cat.name;
-  const styles = cat.styles || [];
-  wrap.innerHTML = styles.map((s,i) => `
-    <div class="sp-style-row">
-      <button class="sp-style-chk${s.done?' done':''}" onclick="toggleStyle_('${cat.id}',${i})">${s.done?'✓':''}</button>
-      <input class="sp-style-inp" value="${(s.name||'').replace(/"/g,'&quot;')}" placeholder="款式名称..." oninput="styleRename_('${cat.id}',${i},this.value)">
-      <button class="sp-style-del" onclick="deleteStyle_('${cat.id}',${i})">×</button>
-    </div>
-  `).join('');
-  const done = styles.filter(s=>s.done).length;
-  const pct  = styles.length ? Math.round(done/styles.length*100) : 0;
-  const ptxt = document.getElementById('sp-progress-txt');
-  const pfill= document.getElementById('sp-progress-fill');
-  const pbar = document.getElementById('sp-cat-progress');
-  if (ptxt)  ptxt.textContent = `${done} / ${styles.length} (${pct}%)`;
-  if (pfill) pfill.style.width = pct + '%';
-  if (pbar)  pbar.style.display = 'flex';
+  if (emptyEl)  emptyEl.style.display  = 'none';
+  if (detailEl) detailEl.style.display = 'flex';
+  const titleEl = document.getElementById('sp-ref-title');
+  if (titleEl) titleEl.textContent = r.name || '';
+  const nameInp = document.getElementById('sp-ref-name');
+  if (nameInp) nameInp.value = r.name || '';
+  const featInp = document.getElementById('sp-ref-feature');
+  if (featInp) featInp.value = r.feature || '';
+  const notesInp = document.getElementById('sp-ref-notes');
+  if (notesInp) notesInp.value = r.notes || '';
+  renderRefKwChips_(r);
 }
 
-function toggleStyle_(catId, idx) {
-  const cat = (S.studioCatmap||[]).find(c=>c.id===catId); if(!cat) return;
-  cat.styles[idx].done = !cat.styles[idx].done; studioSave(); renderStyles_(); renderCatmap_();
+function refField(field, val) {
+  const r = (S.studioCatmap||[]).find(c=>c.id===_studioActiveRef); if (!r) return;
+  r[field] = val;
+  if (field === 'name') {
+    const titleEl = document.getElementById('sp-ref-title');
+    if (titleEl) titleEl.textContent = val;
+    renderCatmap_();
+  }
+  studioSave();
 }
 
-function styleRename_(catId, idx, val) {
-  const cat = (S.studioCatmap||[]).find(c=>c.id===catId); if(!cat) return;
-  cat.styles[idx].name = val; studioSave();
+function renderRefKwChips_(r) {
+  const el = document.getElementById('sp-ref-kw-chips'); if (!el) return;
+  el.innerHTML = (r.keywords||[]).map(k => {
+    const esc = k.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<span class="sp-tech-chip">${k}<button class="sp-tech-del" onclick="removeRefKw_('${esc}')">×</button></span>`;
+  }).join('');
 }
 
-function deleteStyle_(catId, idx) {
-  const cat = (S.studioCatmap||[]).find(c=>c.id===catId); if(!cat) return;
-  cat.styles.splice(idx,1); studioSave(); renderStyles_(); renderCatmap_();
+function addRefKw_() {
+  const inp = document.getElementById('sp-ref-kw-inp'); if (!inp) return;
+  const val = inp.value.trim(); if (!val) return;
+  const r = (S.studioCatmap||[]).find(c=>c.id===_studioActiveRef); if (!r) return;
+  if (!r.keywords) r.keywords=[];
+  if (!r.keywords.includes(val)) { r.keywords.push(val); studioSave(); renderRefKwChips_(r); }
+  inp.value='';
 }
 
-function addStyle_() {
-  const cat = (S.studioCatmap||[]).find(c=>c.id===_studioActiveCat); if(!cat) return;
-  if (!cat.styles) cat.styles = [];
-  cat.styles.push({id:suid(), name:'', done:false}); studioSave(); renderStyles_();
-  setTimeout(()=>{ const ins = document.querySelectorAll('.sp-style-inp'); if(ins.length) ins[ins.length-1].focus(); },50);
+function removeRefKw_(kw) {
+  const r = (S.studioCatmap||[]).find(c=>c.id===_studioActiveRef); if (!r) return;
+  r.keywords = (r.keywords||[]).filter(k=>k!==kw); studioSave(); renderRefKwChips_(r);
 }
 
 function openNewCatModal() { openModal('studioNewCatModal'); setTimeout(()=>document.getElementById('snc-name').focus(),80); }
@@ -4828,19 +4876,23 @@ function createCat_() {
   const name = document.getElementById('snc-name').value.trim();
   if (!name) { alert('请输入品类名称'); return; }
   if (!S.studioCatmap) S.studioCatmap = [];
-  const cat = { id:suid(), name, styles:[] };
-  S.studioCatmap.push(cat); studioSave();
+  const r = { id:suid(), name, feature:'', keywords:[], notes:'' };
+  S.studioCatmap.push(r); studioSave();
   closeModal('studioNewCatModal');
   document.getElementById('snc-name').value = '';
-  _studioActiveCat = cat.id; renderCatmap_();
+  _studioActiveRef = r.id; renderCatmap_();
 }
 
 function deleteCurrentCat_() {
-  if (!_studioActiveCat) return;
-  const cat = (S.studioCatmap||[]).find(c=>c.id===_studioActiveCat);
-  if (!cat || !confirm(`确认删除品类"${cat.name}"及其所有款式？`)) return;
-  S.studioCatmap = (S.studioCatmap||[]).filter(c=>c.id!==_studioActiveCat);
-  _studioActiveCat = null; studioSave(); renderCatmap_();
+  if (!_studioActiveRef) return;
+  const r = (S.studioCatmap||[]).find(c=>c.id===_studioActiveRef);
+  if (!r || !confirm(`确认删除"${r.name}"？`)) return;
+  S.studioCatmap = (S.studioCatmap||[]).filter(c=>c.id!==_studioActiveRef);
+  _studioActiveRef = null; studioSave(); renderCatmap_();
+  const detailEl = document.getElementById('sp-ref-detail');
+  const emptyEl  = document.getElementById('sp-ref-empty');
+  if (detailEl) detailEl.style.display='none';
+  if (emptyEl)  emptyEl.style.display='flex';
 }
 
 // ── CLO 技术清单 ──
@@ -4859,7 +4911,7 @@ function renderClo_() {
   if (q) list = list.filter(t=>(t.name+' '+(t.category||'')+' '+(t.notes||'')).toLowerCase().includes(q));
   el.innerHTML = list.map(t => `
     <div class="sp-clo-row">
-      <div class="sp-clo-dot${t.status==='mastered'?' mastered':''}" title="点击切换状态" onclick="toggleCloStatus_('${t.id}')"></div>
+      <div class="sp-clo-dot${t.status==='mastered'?' mastered':''}" title="click to toggle" onclick="toggleCloStatus_('${t.id}')"></div>
       <div style="flex:1;min-width:0;">
         ${t.category?`<div class="sp-clo-cat">${t.category}</div>`:''}
         <div class="sp-clo-name">${t.name}</div>
@@ -4902,7 +4954,7 @@ function setNewCloStatus(s) {
 }
 
 function openNewCloModal() {
-  document.getElementById('snc-modal-title').textContent = '新建 CLO 技术点';
+  document.getElementById('snc-modal-title').textContent = '新建技能';
   document.getElementById('snc-edit-id').value = '';
   document.getElementById('snc-cname').value  = '';
   document.getElementById('snc-ccat').value   = '';
@@ -4915,7 +4967,7 @@ function openNewCloModal() {
 
 function openEditCloModal_(id) {
   const t = (S.studioClo||[]).find(x=>x.id===id); if (!t) return;
-  document.getElementById('snc-modal-title').textContent = '编辑 CLO 技术点';
+  document.getElementById('snc-modal-title').textContent = '编辑技能';
   document.getElementById('snc-edit-id').value = id;
   document.getElementById('snc-cname').value   = t.name  || '';
   document.getElementById('snc-ccat').value    = t.category || '';
@@ -4977,8 +5029,7 @@ function studioExport() {
   <div class="modal" style="max-width:360px;">
     <button class="close-btn" onclick="closeModal('studioNewPlanModal')">✕</button>
     <div class="modal-title">新建建模记录</div>
-    <div class="form-row"><label class="form-label">名称 *</label><input class="form-input" id="snp-name" placeholder="例：SS25 工装连衣裙"/></div>
-    <div class="form-row"><label class="form-label">品类</label><input class="form-input" id="snp-cat" placeholder="DRESS / COAT / TOP..."/></div>
+    <div class="form-row"><label class="form-label">名称 *</label><input class="form-input" id="snp-name" placeholder="项目名称"/></div>
     <div style="display:flex;gap:8px;margin-top:6px;">
       <button class="pxl-btn primary" onclick="createPlan_()">创建</button>
       <button class="pxl-btn" onclick="closeModal('studioNewPlanModal')">取消</button>
@@ -5003,11 +5054,11 @@ function studioExport() {
 <div class="overlay" id="studioNewCloModal">
   <div class="modal" style="max-width:360px;">
     <button class="close-btn" onclick="closeModal('studioNewCloModal')">✕</button>
-    <div class="modal-title" id="snc-modal-title">新建 CLO 技术点</div>
+    <div class="modal-title" id="snc-modal-title">新建技能</div>
     <input type="hidden" id="snc-edit-id" value="">
-    <div class="form-row"><label class="form-label">技术名称 *</label><input class="form-input" id="snc-cname" placeholder="例：曲面缝合 / 褶裥工具"/></div>
-    <div class="form-row"><label class="form-label">品类</label><input class="form-input" id="snc-ccat" placeholder="建模 / 布料 / 渲染..."/></div>
-    <div class="form-row"><label class="form-label">备注</label><textarea class="form-input" id="snc-cnotes" rows="2" placeholder="说明、链接、注意事项..."></textarea></div>
+    <div class="form-row"><label class="form-label">技能名称 *</label><input class="form-input" id="snc-cname" placeholder="想学的技能或技巧"/></div>
+    <div class="form-row"><label class="form-label">分类</label><input class="form-input" id="snc-ccat" placeholder="例：制版 / 软件 / 工艺..."/></div>
+    <div class="form-row"><label class="form-label">备注</label><textarea class="form-input" id="snc-cnotes" rows="2" placeholder="资料链接、学习方式、备注..."></textarea></div>
     <div class="form-row">
       <label class="form-label">状态</label>
       <div style="display:flex;gap:6px;">

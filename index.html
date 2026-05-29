@@ -961,7 +961,7 @@ body{
     </div>
 
     <!-- STUDIO Toolkit -->
-    <div class="section" id="sec-studio" style="overflow:hidden;height:100%;flex-direction:column;">
+    <div class="section" id="sec-studio" style="overflow:hidden;display:none;height:100%;flex-direction:column;">
       <!-- Sub-tabs -->
       <div class="toolbar" style="padding:4px 8px;gap:4px;flex-shrink:0;">
         <button class="pxl-btn studio-stab active" id="studio-tab-plan" onclick="studioTab('plan',this)">Projects</button>
@@ -1534,7 +1534,7 @@ function showTab(tab, el){
   if(tab==='gantt') ganttRender();
   if(tab==='checkin') renderCheckin();
   if(tab==='eng') renderEngCards();
-  if(tab==='studio') setTimeout(studioInit, 0);
+  if(tab==='studio') studioInit();
 }
 
 // ═══════════════════════════════════════
@@ -4333,6 +4333,192 @@ function doChangePassword(){
   renderAll(); // instant paint from local
   await loadState(); // cloud sync (will re-render if cloud is newer)
 })();
+</script>
+
+<!-- FLEETING MODAL -->
+<!-- CARD MODAL -->
+<div class="overlay" id="cardModal">
+  <div class="modal" style="max-width:620px;max-height:92vh;display:flex;flex-direction:column;">
+    <button class="close-btn" onclick="closeModal('cardModal')">✕</button>
+    <div class="modal-title" id="cardModalTitle">新建卡片</div>
+    <input type="hidden" id="editCardId"/>
+    <input type="hidden" id="cardThreadId"/>
+    <div id="cardThreadHint" style="display:none;font-size:11px;color:#800080;margin-bottom:6px;padding:4px 8px;background:#f8f0ff;border-left:3px solid #800080;">✦ 在串中添加卡片</div>
+    <div class="form-row">
+      <label class="form-label">类型</label>
+      <div style="display:flex;gap:8px;margin-top:2px;">
+        <label style="font-size:15px;color:#000;display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="radio" name="cardType" id="typeQuote" value="quote" checked/> Quote
+        </label>
+        <label style="font-size:15px;color:#000;display:flex;align-items:center;gap:5px;cursor:pointer;">
+          <input type="radio" name="cardType" id="typeIdea" value="idea"/> 想法
+        </label>
+      </div>
+    </div>
+    <div class="form-row" id="quoteRow">
+      <label class="form-label">Quote 原文</label>
+      <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
+    </div>
+    <div class="form-row" id="cardBodyRow">
+      <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
+      <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
+    </div>
+    <div class="form-row" id="cardTagsRow">
+      <label class="form-label">标签（逗号分隔）</label>
+      <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
+    </div>
+    <div class="modal-btns">
+      <button class="pxl-btn" onclick="closeModal('cardModal')">取消</button>
+      <button class="pxl-btn primary" onclick="saveCard()">保存 +5XP</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- HIGHLIGHT TOOLBAR -->
+<div class="hl-toolbar" id="hlToolbar">
+  <div class="hl-swatch" style="background:#fff176;" title="黄色" onclick="applyHighlight('yellow')"></div>
+  <div class="hl-swatch" style="background:#b9f6ca;" title="绿色" onclick="applyHighlight('green')"></div>
+  <div class="hl-swatch" style="background:#fce4ec;" title="粉色" onclick="applyHighlight('pink')"></div>
+  <div class="hl-swatch" style="background:#e3f2fd;" title="蓝色" onclick="applyHighlight('blue')"></div>
+  <div class="hl-clear" onclick="clearHighlight()" title="清除">✕</div>
+</div>
+<script>
+// ═══════════════════════════════════════
+// HIGHLIGHT
+// ═══════════════════════════════════════
+let _hlTarget = null; // {cid, field, start, end}
+
+function onCardSelect(e, cid, field){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed){ hideHlToolbar(); return; }
+  const range = sel.getRangeAt(0);
+  if(!range || range.collapsed){ hideHlToolbar(); return; }
+  // get text offset within the element
+  const el = e.currentTarget;
+  const fullText = el.textContent;
+  const selText = sel.toString();
+  if(!selText.trim()){ hideHlToolbar(); return; }
+  // compute start offset
+  const preRange = document.createRange();
+  preRange.setStart(el, 0);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  const start = preRange.toString().length;
+  const end = start + selText.length;
+  _hlTarget = {cid, field, start, end};
+  // position toolbar near selection
+  const rect = range.getBoundingClientRect();
+  const tb = document.getElementById('hlToolbar');
+  tb.style.left = Math.max(4, rect.left) + 'px';
+  tb.style.top = (rect.top - 44 + window.scrollY) + 'px';
+  tb.classList.add('show');
+}
+
+function hideHlToolbar(){
+  document.getElementById('hlToolbar').classList.remove('show');
+  _hlTarget = null;
+}
+
+document.addEventListener('mousedown', function(e){
+  if(!e.target.closest('#hlToolbar')) hideHlToolbar();
+});
+
+function applyHighlight(color){
+  if(!_hlTarget) return;
+  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
+  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
+  if(!c[field]) c[field]=[];
+  // merge overlapping
+  const {start,end} = _hlTarget;
+  c[field] = c[field].filter(h=>h.end<=start||h.start>=end); // remove overlaps
+  c[field].push({start,end,color});
+  hideHlToolbar();
+  window.getSelection().removeAllRanges();
+  saveState(); renderCards();
+}
+
+function clearHighlight(){
+  if(!_hlTarget) return;
+  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
+  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
+  const {start,end}=_hlTarget;
+  if(c[field]) c[field]=c[field].filter(h=>!(h.start<end&&h.end>start));
+  hideHlToolbar();
+  window.getSelection().removeAllRanges();
+  saveState(); renderCards();
+}
+
+// ── 扩展功能管理 ──
+function extLoad(){
+  return JSON.parse(localStorage.getItem('mmm_extensions')||'[]');
+}
+function extSave(list){
+  localStorage.setItem('mmm_extensions', JSON.stringify(list));
+}
+function extAdd(){
+  const name = document.getElementById('ext-name-input').value.trim();
+  const url  = document.getElementById('ext-url-input').value.trim();
+  const desc = document.getElementById('ext-desc-input').value.trim();
+  if(!name||!url){ showToast('请填写名称和URL'); return; }
+  const list = extLoad();
+  list.push({ id: Date.now(), name, url, desc });
+  extSave(list);
+  document.getElementById('ext-name-input').value='';
+  document.getElementById('ext-url-input').value='';
+  document.getElementById('ext-desc-input').value='';
+  renderExtensions();
+  showToast('扩展已添加 ✓');
+}
+function extDelete(id){
+  extSave(extLoad().filter(e=>e.id!==id));
+  renderExtensions();
+}
+function openExtModal(){
+  renderExtModal();
+  openModal('extModal');
+}
+
+function renderExtModal(){
+  const builtin=[{id:'builtin-task-paint',name:'Task Paint',url:'https://mmm-d6.github.io/mmm_test/task-paint.html',desc:'任务可视化画板'}];
+  const list=extLoad();
+  builtin.forEach(b=>{ if(!list.find(e=>e.id===b.id)) list.unshift(b); });
+  const el=document.getElementById('ext-modal-list'); if(!el) return;
+  if(!list.length){ el.innerHTML='<div style="color:#808080;font-size:13px;text-align:center;padding:12px;">暂无扩展</div>'; return; }
+  el.innerHTML=list.map(e=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--win-darker);background:var(--surface2);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:bold;color:#000080;">${e.name}</div>
+        ${e.desc?'<div style="font-size:11px;color:#808080;">'+e.desc+'</div>':''}
+      </div>
+      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')">打开</button>
+      ${(!e.id||!String(e.id).startsWith('builtin'))?'<button class="icon-btn" onclick="extDelete('+e.id+');renderExtModal();" style="color:#cc0000;">✕</button>':''}
+    </div>
+  `).join('');
+}
+
+function renderExtensions(){
+  const list = extLoad();
+  const el = document.getElementById('ext-list');
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML='<div style="font-size:13px;color:#808080;padding:16px;border:2px dashed #c0c0c0;text-align:center;">还没有扩展，在下方添加第一个吧</div>';
+    return;
+  }
+  el.innerHTML = list.map(e=>`
+    <div style="background:var(--surface2);border:2px solid var(--win-darker);padding:12px 14px;display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:bold;color:#000080;margin-bottom:3px;">${e.name}</div>
+        ${e.desc?'<div style="font-size:11px;color:#808080;margin-bottom:4px;">'+e.desc+'</div>':''}
+        <div style="font-size:11px;color:#808080;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.url}</div>
+      </div>
+      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')" style="flex-shrink:0;">打开</button>
+      <button class="icon-btn" onclick="extDelete(${e.id})" style="color:#cc0000;flex-shrink:0;">✕</button>
+    </div>
+  `).join('');
+}
+
+
 
 // ═══════════════════════════════════════════════════
 // STUDIO MODULE — Toolkit
@@ -4559,193 +4745,6 @@ function studioExport() {
   a.download = 'toolkit-backup-' + new Date().toISOString().slice(0,10) + '.json';
   a.click();
 }
-
-</script>
-
-<!-- FLEETING MODAL -->
-<!-- CARD MODAL -->
-<div class="overlay" id="cardModal">
-  <div class="modal" style="max-width:620px;max-height:92vh;display:flex;flex-direction:column;">
-    <button class="close-btn" onclick="closeModal('cardModal')">✕</button>
-    <div class="modal-title" id="cardModalTitle">新建卡片</div>
-    <input type="hidden" id="editCardId"/>
-    <input type="hidden" id="cardThreadId"/>
-    <div id="cardThreadHint" style="display:none;font-size:11px;color:#800080;margin-bottom:6px;padding:4px 8px;background:#f8f0ff;border-left:3px solid #800080;">✦ 在串中添加卡片</div>
-    <div class="form-row">
-      <label class="form-label">类型</label>
-      <div style="display:flex;gap:8px;margin-top:2px;">
-        <label style="font-size:15px;color:#000;display:flex;align-items:center;gap:5px;cursor:pointer;">
-          <input type="radio" name="cardType" id="typeQuote" value="quote" checked/> Quote
-        </label>
-        <label style="font-size:15px;color:#000;display:flex;align-items:center;gap:5px;cursor:pointer;">
-          <input type="radio" name="cardType" id="typeIdea" value="idea"/> 想法
-        </label>
-      </div>
-    </div>
-    <div class="form-row" id="quoteRow">
-      <label class="form-label">Quote 原文</label>
-      <textarea class="form-textarea" id="cardQuote" rows="4" placeholder="从 Zotero 粘贴，引用符/作者/日期一起贴进来就好"></textarea>
-    </div>
-    <div class="form-row" id="cardBodyRow">
-      <label class="form-label" id="bodyLabel">我的想法 / 评注</label>
-      <textarea class="form-textarea" id="cardBody" placeholder="用自己的话写——为什么这个重要？和你在想的东西有什么关系？" style="min-height:260px;height:auto;resize:vertical;line-height:1.8;font-size:15px;overflow-y:auto;"></textarea>
-    </div>
-    <div class="form-row" id="cardTagsRow">
-      <label class="form-label">标签（逗号分隔）</label>
-      <input class="form-input" id="cardTags" placeholder="methodology, identity, trauma..."/>
-    </div>
-    <div class="modal-btns">
-      <button class="pxl-btn" onclick="closeModal('cardModal')">取消</button>
-      <button class="pxl-btn primary" onclick="saveCard()">保存 +5XP</button>
-    </div>
-  </div>
-</div>
-
-
-
-<!-- HIGHLIGHT TOOLBAR -->
-<div class="hl-toolbar" id="hlToolbar">
-  <div class="hl-swatch" style="background:#fff176;" title="黄色" onclick="applyHighlight('yellow')"></div>
-  <div class="hl-swatch" style="background:#b9f6ca;" title="绿色" onclick="applyHighlight('green')"></div>
-  <div class="hl-swatch" style="background:#fce4ec;" title="粉色" onclick="applyHighlight('pink')"></div>
-  <div class="hl-swatch" style="background:#e3f2fd;" title="蓝色" onclick="applyHighlight('blue')"></div>
-  <div class="hl-clear" onclick="clearHighlight()" title="清除">✕</div>
-</div>
-<script>
-// ═══════════════════════════════════════
-// HIGHLIGHT
-// ═══════════════════════════════════════
-let _hlTarget = null; // {cid, field, start, end}
-
-function onCardSelect(e, cid, field){
-  const sel = window.getSelection();
-  if(!sel || sel.isCollapsed){ hideHlToolbar(); return; }
-  const range = sel.getRangeAt(0);
-  if(!range || range.collapsed){ hideHlToolbar(); return; }
-  // get text offset within the element
-  const el = e.currentTarget;
-  const fullText = el.textContent;
-  const selText = sel.toString();
-  if(!selText.trim()){ hideHlToolbar(); return; }
-  // compute start offset
-  const preRange = document.createRange();
-  preRange.setStart(el, 0);
-  preRange.setEnd(range.startContainer, range.startOffset);
-  const start = preRange.toString().length;
-  const end = start + selText.length;
-  _hlTarget = {cid, field, start, end};
-  // position toolbar near selection
-  const rect = range.getBoundingClientRect();
-  const tb = document.getElementById('hlToolbar');
-  tb.style.left = Math.max(4, rect.left) + 'px';
-  tb.style.top = (rect.top - 44 + window.scrollY) + 'px';
-  tb.classList.add('show');
-}
-
-function hideHlToolbar(){
-  document.getElementById('hlToolbar').classList.remove('show');
-  _hlTarget = null;
-}
-
-document.addEventListener('mousedown', function(e){
-  if(!e.target.closest('#hlToolbar')) hideHlToolbar();
-});
-
-function applyHighlight(color){
-  if(!_hlTarget) return;
-  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
-  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
-  if(!c[field]) c[field]=[];
-  // merge overlapping
-  const {start,end} = _hlTarget;
-  c[field] = c[field].filter(h=>h.end<=start||h.start>=end); // remove overlaps
-  c[field].push({start,end,color});
-  hideHlToolbar();
-  window.getSelection().removeAllRanges();
-  saveState(); renderCards();
-}
-
-function clearHighlight(){
-  if(!_hlTarget) return;
-  const c = S.cards.find(x=>x.id==_hlTarget.cid); if(!c) return;
-  const field = _hlTarget.field==='quote' ? 'quoteHl' : 'bodyHl';
-  const {start,end}=_hlTarget;
-  if(c[field]) c[field]=c[field].filter(h=>!(h.start<end&&h.end>start));
-  hideHlToolbar();
-  window.getSelection().removeAllRanges();
-  saveState(); renderCards();
-}
-
-// ── 扩展功能管理 ──
-function extLoad(){
-  return JSON.parse(localStorage.getItem('mmm_extensions')||'[]');
-}
-function extSave(list){
-  localStorage.setItem('mmm_extensions', JSON.stringify(list));
-}
-function extAdd(){
-  const name = document.getElementById('ext-name-input').value.trim();
-  const url  = document.getElementById('ext-url-input').value.trim();
-  const desc = document.getElementById('ext-desc-input').value.trim();
-  if(!name||!url){ showToast('请填写名称和URL'); return; }
-  const list = extLoad();
-  list.push({ id: Date.now(), name, url, desc });
-  extSave(list);
-  document.getElementById('ext-name-input').value='';
-  document.getElementById('ext-url-input').value='';
-  document.getElementById('ext-desc-input').value='';
-  renderExtensions();
-  showToast('扩展已添加 ✓');
-}
-function extDelete(id){
-  extSave(extLoad().filter(e=>e.id!==id));
-  renderExtensions();
-}
-function openExtModal(){
-  renderExtModal();
-  openModal('extModal');
-}
-
-function renderExtModal(){
-  const builtin=[{id:'builtin-task-paint',name:'Task Paint',url:'https://mmm-d6.github.io/mmm_test/task-paint.html',desc:'任务可视化画板'}];
-  const list=extLoad();
-  builtin.forEach(b=>{ if(!list.find(e=>e.id===b.id)) list.unshift(b); });
-  const el=document.getElementById('ext-modal-list'); if(!el) return;
-  if(!list.length){ el.innerHTML='<div style="color:#808080;font-size:13px;text-align:center;padding:12px;">暂无扩展</div>'; return; }
-  el.innerHTML=list.map(e=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--win-darker);background:var(--surface2);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:bold;color:#000080;">${e.name}</div>
-        ${e.desc?'<div style="font-size:11px;color:#808080;">'+e.desc+'</div>':''}
-      </div>
-      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')">打开</button>
-      ${(!e.id||!String(e.id).startsWith('builtin'))?'<button class="icon-btn" onclick="extDelete('+e.id+');renderExtModal();" style="color:#cc0000;">✕</button>':''}
-    </div>
-  `).join('');
-}
-
-function renderExtensions(){
-  const list = extLoad();
-  const el = document.getElementById('ext-list');
-  if(!el) return;
-  if(!list.length){
-    el.innerHTML='<div style="font-size:13px;color:#808080;padding:16px;border:2px dashed #c0c0c0;text-align:center;">还没有扩展，在下方添加第一个吧</div>';
-    return;
-  }
-  el.innerHTML = list.map(e=>`
-    <div style="background:var(--surface2);border:2px solid var(--win-darker);padding:12px 14px;display:flex;align-items:center;gap:10px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:bold;color:#000080;margin-bottom:3px;">${e.name}</div>
-        ${e.desc?'<div style="font-size:11px;color:#808080;margin-bottom:4px;">'+e.desc+'</div>':''}
-        <div style="font-size:11px;color:#808080;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.url}</div>
-      </div>
-      <button class="pxl-btn primary" onclick="window.open('${e.url}','_blank')" style="flex-shrink:0;">打开</button>
-      <button class="icon-btn" onclick="extDelete(${e.id})" style="color:#cc0000;flex-shrink:0;">✕</button>
-    </div>
-  `).join('');
-}
-
-
 
 </script>
 

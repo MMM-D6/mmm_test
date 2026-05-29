@@ -961,7 +961,7 @@ body{
     </div>
 
     <!-- STUDIO Toolkit -->
-    <div class="section" id="sec-studio" style="overflow:hidden;display:none;height:100%;flex-direction:column;">
+    <div class="section" id="sec-studio" style="overflow:hidden;height:100%;flex-direction:column;">
       <!-- Sub-tabs -->
       <div class="toolbar" style="padding:4px 8px;gap:4px;flex-shrink:0;">
         <button class="pxl-btn studio-stab active" id="studio-tab-plan" onclick="studioTab('plan',this)">Projects</button>
@@ -1534,7 +1534,7 @@ function showTab(tab, el){
   if(tab==='gantt') ganttRender();
   if(tab==='checkin') renderCheckin();
   if(tab==='eng') renderEngCards();
-  if(tab==='studio') studioInit();
+  if(tab==='studio'){ if(typeof studioInit==='function') studioInit(); }
 }
 
 // ═══════════════════════════════════════

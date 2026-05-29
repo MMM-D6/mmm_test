@@ -223,3 +223,11 @@ function studioExport() {
   a.download = 'toolkit-backup-' + new Date().toISOString().slice(0,10) + '.json';
   a.click();
 }
+
+// Auto-init if Toolkit tab is already active when this script loads
+document.addEventListener('DOMContentLoaded', function() {
+  if (document.getElementById('sec-studio') &&
+      document.getElementById('sec-studio').classList.contains('active')) {
+    studioInit();
+  }
+});

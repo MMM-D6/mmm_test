@@ -78,7 +78,7 @@ function planField(field, val) {
 function renderPlanTagChips_(p) {
   const el = document.getElementById('spd-ptags'); if (!el) return;
   el.innerHTML = (p.tags||[]).map(t => {
-    const esc = t.replace(/\/g,'\\').replace(/'/g,"\'");
+    const esc = t.replace(/'/g,'&#39;');
     return `<span class="sp-tech-chip" style="background:#000080;color:#fff;border-color:#000060 #000040 #000040 #000060;">${t}<button class="sp-tech-del" style="color:#aaa;" onclick="removePlanTag_('${esc}')">×</button></span>`;
   }).join('');
 }

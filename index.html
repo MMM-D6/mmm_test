@@ -3232,6 +3232,30 @@ function gDayIdx(d){
   return Math.round((a-b)/86400000);
 }
 const G_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// Calendar date helpers — store absolute dates as "YYYY-MM-DD"
+function gcToStr(d) {
+  const dd = new Date(d);
+  return dd.getFullYear() + '-' +
+    String(dd.getMonth()+1).padStart(2,'0') + '-' +
+    String(dd.getDate()).padStart(2,'0');
+}
+function gcStrToDate(s) {
+  // parse "YYYY-MM-DD" in local time
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function gcDateOff(s) {
+  // column offset of date string from current gcOff viewport
+  // returns integer: how many columns from the left edge of viewport
+  const target = gcStrToDate(s);
+  const viewStart = gAddDays(gcOff);
+  return Math.round((target - viewStart) / 86400000);
+}
+function gcOffToStr(colOff) {
+  // convert viewport column offset to absolute date string
+  return gcToStr(gAddDays(gcOff + colOff));
+}
 const G_PROJ_COLOR = '#000080';
 const G_TODO_COLOR = '#008080';
 // ── tooltip ──
@@ -3709,7 +3733,9 @@ function gCalRemove(taskId){ if(!S.ganttPos)S.ganttPos={}; if(S.ganttPos[taskId]
 
 function gcBarGeom(pos){
   if(!pos||pos.day==null) return null;
-  const sc=pos.day-gcOff, span=Math.max(1,pos.days||1);
+  // pos.day is now "YYYY-MM-DD" string
+  const sc = typeof pos.day === 'string' ? gcDateOff(pos.day) : pos.day - gcOff;
+  const span=Math.max(1,pos.days||1);
   if(sc>=GC_COLS||sc+span<=0) return null;
   const s=Math.max(0,sc), e=Math.min(GC_COLS,sc+span);
   return {x:s*GC_COL_W, w:(e-s)*GC_COL_W-2};
@@ -3742,7 +3768,9 @@ function gcSwapRows(rowA, rowB){
 function gcStartDrag(e,taskId,type,barEl){
   e.preventDefault(); e.stopPropagation();
   const pos=gCalPos(taskId); if(!pos) return;
-  gcDrag={taskId,type,x0:e.clientX,day0:pos.day,days0:pos.days||1,barEl};
+  // day0 stored as date string
+  const day0str = typeof pos.day === 'string' ? pos.day : gcOffToStr(pos.day - gcOff);
+  gcDrag={taskId,type,x0:e.clientX,day0:day0str,days0:pos.days||1,barEl};
   window.addEventListener('mousemove',gcOnDrag,{passive:true});
   window.addEventListener('mouseup',gcStopDrag);
 }
@@ -3752,12 +3780,19 @@ function gcOnDrag(e){
   gcRaf=requestAnimationFrame(()=>{
     const{type,x0,day0,days0,barEl}=gcDrag;
     const dc=Math.round((e.clientX-x0)/GC_COL_W);
-    let day=day0, days=days0;
-    if(type==='move') day=day0+dc;
-    else if(type==='right') days=Math.max(1,days0+dc);
-    const geo=gcBarGeom({day,days,row:0});
+    let days=days0;
+    let dayStr=day0; // date string
+    if(type==='move'){
+      // shift the date string by dc days
+      const base=gcStrToDate(day0);
+      base.setDate(base.getDate()+dc);
+      dayStr=gcToStr(base);
+    } else if(type==='right'){
+      days=Math.max(1,days0+dc);
+    }
+    const geo=gcBarGeom({day:dayStr,days,row:0});
     if(geo&&barEl){ barEl.style.left=geo.x+'px'; barEl.style.width=geo.w+'px'; }
-    gcDrag._day=day; gcDrag._days=days;
+    gcDrag._day=dayStr; gcDrag._days=days;
   });
 }
 function gcStopDrag(){
@@ -3765,10 +3800,12 @@ function gcStopDrag(){
   if(gcDrag){
     if(gcDrag.isEv){
       const evId=gcDrag.evId, pos=gEvCalPos(evId)||{};
-      gSetEvCalPos(evId,{...pos,day:gcDrag._day!==undefined?gcDrag._day:pos.day,days:gcDrag._days!==undefined?gcDrag._days:pos.days||1});
+      const newDay = gcDrag._day!==undefined ? gcDrag._day : (typeof pos.day==='string' ? pos.day : gcOffToStr(0));
+      gSetEvCalPos(evId,{...pos,day:newDay,days:gcDrag._days!==undefined?gcDrag._days:pos.days||1});
     } else {
       const{taskId}=gcDrag, pos=gCalPos(taskId)||{};
-      gSetCalPos(taskId,{...pos,day:gcDrag._day!==undefined?gcDrag._day:pos.day,days:gcDrag._days!==undefined?gcDrag._days:pos.days||1});
+      const newDay = gcDrag._day!==undefined ? gcDrag._day : (typeof pos.day==='string' ? pos.day : gcOffToStr(0));
+      gSetCalPos(taskId,{...pos,day:newDay,days:gcDrag._days!==undefined?gcDrag._days:pos.days||1});
     }
     gcRender();
   }
@@ -3821,7 +3858,7 @@ function gcRender(){
   const hdr=document.createElement('div'); hdr.className='gc-hdr';
   for(let i=0;i<GC_COLS;i++){
     const d=gAddDays(gcOff+i);
-    const isToday=(gcOff+i)===today, isWE=d.getDay()===0||d.getDay()===6;
+    const isToday=gcToStr(d)===gcToStr(new Date()), isWE=d.getDay()===0||d.getDay()===6;
     const c=document.createElement('div');
     c.className='gc-hcell'+(isToday?' gc-today':isWE?' gc-weekend':'');
     c.style.width=GC_COL_W+'px';
@@ -3851,7 +3888,7 @@ function gcRender(){
     const cells=document.createElement('div'); cells.className='gc-cells'; cells.style.minWidth=totalW+'px';
     for(let i=0;i<GC_COLS;i++){
       const d=gAddDays(gcOff+i);
-      const isToday=(gcOff+i)===today, isWE=d.getDay()===0||d.getDay()===6;
+      const isToday=gcToStr(d)===gcToStr(new Date()), isWE=d.getDay()===0||d.getDay()===6;
       const c=document.createElement('div');
       c.className='gc-cell'+(isToday?' gc-today':isWE?' gc-weekend':'');
       c.style.width=GC_COL_W+'px'; cells.appendChild(c);
@@ -3867,7 +3904,7 @@ function gcRender(){
       const x=ev.clientX-cells.getBoundingClientRect().left;
       const col=Math.max(0,Math.min(GC_COLS-1,Math.floor(x/GC_COL_W)));
       const oldPos=gCalPos(tid)||{};
-      gSetCalPos(tid,{day:gcOff+col,days:oldPos.days||1,row});
+      gSetCalPos(tid,{day:gcOffToStr(col),days:oldPos.days||1,row});
       gcRender();
     });
     rowEl.appendChild(cells); grid.appendChild(rowEl);
@@ -3891,7 +3928,7 @@ function gcRender(){
     const tid=parseInt(ev.dataTransfer.getData('gTaskId')); if(!tid) return;
     const x=ev.clientX-emCells.getBoundingClientRect().left;
     const col=Math.max(0,Math.min(GC_COLS-1,Math.floor(x/GC_COL_W)));
-    gSetCalPos(tid,{day:gcOff+col,days:1,row:gcNextRow()});
+    gSetCalPos(tid,{day:gcOffToStr(col),days:1,row:gcNextRow()});
     gcRender();
   });
   emRow.appendChild(emCells); grid.appendChild(emRow);
@@ -3966,6 +4003,14 @@ function gMigratePos(){
     // if it has startMin/endMin at root level (old day format) → wrap
     if(v&&v.startMin!=null&&!v.dayPos&&!v.calPos){
       gp[k]={dayPos:{startMin:v.startMin,endMin:v.endMin,dayOff:v.dayOff||0}};
+    }
+    // migrate calPos.day from integer offset to date string
+    if(v&&v.calPos&&typeof v.calPos.day==='number'){
+      const d=new Date(); d.setHours(0,0,0,0);
+      d.setDate(d.getDate()+v.calPos.day);
+      v.calPos.day = d.getFullYear()+'-'+
+        String(d.getMonth()+1).padStart(2,'0')+'-'+
+        String(d.getDate()).padStart(2,'0');
     }
   });
 }

@@ -2173,12 +2173,16 @@ function renderDreams(){
   renderArchive('archiveD',allDreams,dMonthFilter,m=>{dMonthFilter=m;renderDreams();});
   const list=document.getElementById('dreamList');
   list.innerHTML='';
-  if(!entries.length&&!(S.dreamGroups||[]).length){
+  // when month filter active, only show groups that have matching entries
+  const visibleGroups = (S.dreamGroups||[]).filter(g=>
+    !dMonthFilter || entries.some(d=>d.groupId==g.id)
+  );
+  if(!entries.length && !visibleGroups.length){
     list.innerHTML='<div class="empty-state"><div class="empty-icon">*</div>记录你的梦想和愿景</div>';return;
   }
 
   // groups
-  (S.dreamGroups||[]).forEach(g=>{
+  visibleGroups.forEach(g=>{
     const gDreams=entries.filter(d=>d.groupId==g.id);
     const collapsed=_dreamGroupCollapsed[g.id];
     const gc=document.createElement('div'); gc.className='dream-group-card';

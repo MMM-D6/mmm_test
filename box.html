@@ -144,7 +144,14 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   cursor:pointer;font-size:10px;color:var(--green);font-weight:bold;
 }
 .ap-check:hover{background:var(--light);}
-.ap-title{flex:1;font-family:var(--font);font-size:12px;font-weight:bold;min-width:0;word-break:break-word;}
+.ap-title{flex:1;font-family:var(--font);font-size:12px;font-weight:bold;min-width:0;word-break:break-word;cursor:text;}
+.ap-title-input{
+  flex:1;font-family:var(--font);font-size:12px;font-weight:bold;
+  background:#fff;color:#000;
+  border:2px solid;border-color:var(--darker) var(--white) var(--white) var(--darker);
+  padding:1px 4px;outline:none;min-width:0;width:100%;
+}
+.ap-title-input:focus{outline:1px dotted #000;outline-offset:-3px;}
 .ap-meta{font-size:10px;color:var(--dark);white-space:nowrap;flex-shrink:0;}
 .ap-tags{display:flex;gap:3px;flex-wrap:wrap;flex-shrink:0;}
 .ap-tag{font-size:10px;padding:1px 5px;border:1px solid var(--purple);color:var(--purple);cursor:pointer;}
@@ -602,6 +609,32 @@ function updateSectionText(id,val){
   item.text=val||'未命名标题';markDirty();
 }
 
+function startEditTitle(id, el){
+  const item=S.items.find(a=>a.id===id); if(!item) return;
+  const inp=document.createElement('input');
+  inp.className='ap-title-input';
+  inp.value=item.text;
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+  function save(){
+    const val=inp.value.trim()||item.text;
+    item.text=val; markDirty();
+    const div=document.createElement('div');
+    div.className='ap-title'+(item.done?' ':'');
+    div.title='双击编辑';
+    div.textContent=val;
+    div.ondblclick=function(){startEditTitle(id,this);};
+    if(item.done){div.style.textDecoration='line-through';div.style.color='var(--dark)';}
+    inp.replaceWith(div);
+    updateStatus();
+  }
+  inp.addEventListener('blur',save);
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();inp.blur();}
+    if(e.key==='Escape'){inp.value=item.text;inp.blur();}
+  });
+}
+
 function addTag(id){
   const inp=document.getElementById('taginp-'+id);if(!inp) return;
   const tag=inp.value.trim();if(!tag) return;
@@ -678,7 +711,7 @@ function renderTask(item){
   let h=`<div class="ap-card${item.done?' done':''}" id="apc-${item.id}" style="border-left-color:${bc};">`;
   h+=`<div class="ap-top">`;
   h+=`<div class="ap-check" onclick="toggleAP('${item.id}')">${item.done?'✓':''}</div>`;
-  h+=`<div class="ap-title">${escHtml(item.text)}</div>`;
+  h+=`<div class="ap-title" ondblclick="startEditTitle('${item.id}',this)" title="双击编辑">${escHtml(item.text)}</div>`;
   if(item.tags&&item.tags.length){
     h+=`<div class="ap-tags">`;
     item.tags.forEach(t=>{h+=`<span class="ap-tag" onclick="removeTag('${item.id}','${escHtml(t)}')" title="点击删除">${escHtml(t)}</span>`;});

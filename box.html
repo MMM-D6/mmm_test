@@ -113,7 +113,7 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   padding:4px 10px;
   display:flex;align-items:center;gap:6px;
   border:2px solid;border-color:var(--white) var(--darker) var(--darker) var(--white);
-  margin-top:4px;
+  margin-top:4px;cursor:grab;user-select:none;
 }
 .sec-header:first-child{margin-top:0;}
 .sec-header-title{font-family:var(--font);font-size:12px;font-weight:bold;flex:1;}
@@ -121,8 +121,13 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
 .sec-edit-input{
   font-family:var(--font);font-size:12px;font-weight:bold;
   background:var(--blue2);color:#fff;border:1px solid var(--white);
-  padding:1px 4px;outline:none;flex:1;
+  padding:1px 4px;outline:none;flex:1;cursor:text;
 }
+.drag-handle{font-size:11px;color:var(--dark);cursor:grab;padding:0 3px;flex-shrink:0;user-select:none;}
+.sec-header .drag-handle{color:rgba(255,255,255,.7);}
+.ap-card{cursor:default;}
+.dragging{opacity:.35;}
+.drop-indicator{height:3px;background:var(--red);margin:0;pointer-events:none;}
 
 /* ── ACTION POINT CARD ── */
 .ap-card{
@@ -680,6 +685,7 @@ function renderList(){
       if(inp){
         inp.oninput=e=>updateSectionText(item.id,e.target.value);
         inp.onblur=()=>{markDirty();};
+        inp.addEventListener('mousedown',e=>e.stopPropagation());
       }
       return;
     }
@@ -691,13 +697,16 @@ function renderList(){
     if(si) si.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();setStickerEmoji(item.id);}};
   });
 
+  setTimeout(initDrag,0);
   updateStatus();
 }
 
 function renderSection(item){
-  return `<div class="sec-header" id="sec-${item.id}">
-    <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..."/>
+  return `<div class="sec-header" id="sec-${item.id}" draggable="true">
+    <span class="drag-handle" title="拖拽移动">⠿</span>
+    <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..." draggable="false"/>
     <div class="sec-header-actions">
+      <button class="icon-btn" style="color:#fff;border-color:transparent;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">+</button>
       <button class="icon-btn" style="color:#fff;border-color:transparent;" onclick="deleteItem('${item.id}')" title="删除标题">✕</button>
     </div>
   </div>`;
@@ -708,8 +717,9 @@ function renderTask(item){
   const bc=item.done?'var(--green)':'var(--blue)';
   const stHtml=(item.stickers&&item.stickers.length)?item.stickers.map(s=>`<span class="sticker" title="${fmtTime(s.ts)}">${s.emoji}</span>`).join(''):'';
 
-  let h=`<div class="ap-card${item.done?' done':''}" id="apc-${item.id}" style="border-left-color:${bc};">`;
+  let h=`<div class="ap-card${item.done?' done':''}" id="apc-${item.id}" style="border-left-color:${bc};" draggable="true">`;
   h+=`<div class="ap-top">`;
+  h+=`<span class="drag-handle" title="拖拽移动">⠿</span>`;
   h+=`<div class="ap-check" onclick="toggleAP('${item.id}')">${item.done?'✓':''}</div>`;
   h+=`<div class="ap-title" ondblclick="startEditTitle('${item.id}',this)" title="双击编辑">${escHtml(item.text)}</div>`;
   if(item.tags&&item.tags.length){
@@ -735,6 +745,81 @@ function renderTask(item){
   h+=`<div class="compose-row"><textarea class="compose-input" id="msginp-${item.id}" rows="2" placeholder="随时写下想法、情绪、insight..."></textarea><button class="pxl-btn primary" style="align-self:flex-end;" onclick="sendMsg('${item.id}')">发送</button></div>`;
   h+=`</div></div>`;
   return h;
+}
+
+// ── drag and drop ──
+let dragId=null;
+
+function initDrag(){
+  const list=document.getElementById('apList');
+  if(!list) return;
+
+  list.querySelectorAll('[draggable="true"]').forEach(el=>{
+    el.addEventListener('dragstart',e=>{
+      dragId=el.id.replace('sec-','').replace('apc-','');
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    el.addEventListener('dragend',e=>{
+      el.classList.remove('dragging');
+      clearDropIndicators();
+      dragId=null;
+    });
+    el.addEventListener('dragover',e=>{
+      if(!dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      clearDropIndicators();
+      const rect=el.getBoundingClientRect();
+      const mid=rect.top+rect.height/2;
+      if(e.clientY<mid){
+        el.style.borderTop='3px solid var(--red)';
+      } else {
+        el.style.borderBottom='3px solid var(--red)';
+      }
+    });
+    el.addEventListener('dragleave',e=>{
+      el.style.borderTop='';el.style.borderBottom='';
+    });
+    el.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(!dragId) return;
+      const targetEl=el;
+      const targetId=targetEl.id.replace('sec-','').replace('apc-','');
+      if(dragId===targetId){clearDropIndicators();return;}
+      const rect=targetEl.getBoundingClientRect();
+      const mid=rect.top+rect.height/2;
+      const before=e.clientY<mid;
+      // reorder S.items
+      const fromIdx=S.items.findIndex(a=>a.id===dragId);
+      const toIdx=S.items.findIndex(a=>a.id===targetId);
+      if(fromIdx===-1||toIdx===-1){clearDropIndicators();return;}
+      const [moved]=S.items.splice(fromIdx,1);
+      const newTo=S.items.findIndex(a=>a.id===targetId);
+      S.items.splice(before?newTo:newTo+1,0,moved);
+      markDirty();renderList();
+    });
+  });
+}
+
+function clearDropIndicators(){
+  document.querySelectorAll('[draggable="true"]').forEach(el=>{
+    el.style.borderTop='';el.style.borderBottom='';
+  });
+}
+
+// ── add task after section ──
+function addTaskAfterSection(sectionId){
+  const idx=S.items.findIndex(a=>a.id===sectionId);
+  if(idx===-1) return;
+  const newTask={id:uid(),type:'task',text:'新条目',note:'',done:false,doneAt:'',createdAt:ts(),collapsed:false,tags:[],msgs:[],stickers:[],stickerEmoji:'🍅'};
+  S.items.splice(idx+1,0,newTask);
+  markDirty();renderList();
+  // auto-focus to edit the new task title
+  setTimeout(()=>{
+    const titleEl=document.querySelector(`#apc-${newTask.id} .ap-title`);
+    if(titleEl) startEditTitle(newTask.id,titleEl);
+  },60);
 }
 
 function updateStatus(){

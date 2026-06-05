@@ -641,8 +641,7 @@ function editMsg(itemId, msgId, el){
   const ta=document.createElement('textarea');
   ta.className='msg-edit-input';
   ta.value=msg.text;
-  ta.rows=Math.max(2, msg.text.split('
-').length);
+  ta.rows=Math.max(2, msg.text.split('\n').length);
   el.replaceWith(ta);
   ta.focus(); ta.select();
   function save(){
@@ -764,7 +763,7 @@ function renderSection(item){
     <span class="drag-handle" title="拖拽移动">⠿</span>
     <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..." draggable="false"/>
     <div class="sec-header-actions">
-      <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">＋</button>
+      <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">+</button>
       <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="deleteItem('${item.id}')" title="删除标题">✕</button>
     </div>
   </div>`;

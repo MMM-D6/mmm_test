@@ -118,6 +118,7 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
 .sec-header:first-child{margin-top:0;}
 .sec-header-title{font-family:var(--font);font-size:12px;font-weight:bold;flex:1;}
 .sec-header-actions{display:flex;gap:2px;}
+.sec-header .icon-btn{font-size:13px;font-weight:bold;width:20px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;}
 .sec-edit-input{
   font-family:var(--font);font-size:12px;font-weight:bold;
   background:var(--blue2);color:#fff;border:1px solid var(--white);
@@ -184,6 +185,13 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
 }
 .tag-input:focus{outline:1px dotted #000;outline-offset:-3px;}
 .sticker-row{display:flex;gap:4px;align-items:center;margin-bottom:2px;font-size:11px;color:var(--dark);}
+.note-input{
+  width:100%;font-family:var(--font);font-size:11px;color:var(--dark);
+  background:transparent;border:none;border-left:2px solid var(--dark);
+  padding:1px 6px;outline:none;resize:none;line-height:1.5;
+  font-style:italic;
+}
+.note-input:focus{background:#fff;border-left-color:var(--blue);color:#000;font-style:normal;outline:1px dotted #000;outline-offset:-2px;}
 .sticker-input{
   font-family:var(--font);font-size:13px;background:#fff;color:#000;
   border:2px solid;border-color:var(--darker) var(--white) var(--white) var(--darker);
@@ -194,6 +202,12 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   padding:4px 7px;font-size:12px;line-height:1.6;font-family:var(--font);word-break:break-word;position:relative;
 }
 .msg-time{font-size:10px;color:var(--dark);margin-top:2px;}
+.msg-text{cursor:text;}
+.msg-edit-input{
+  width:100%;font-family:var(--font);font-size:12px;
+  background:#fffde7;color:#000;
+  border:1px solid var(--blue);padding:2px 4px;outline:none;resize:none;line-height:1.6;
+}
 .msg-del{position:absolute;top:3px;right:4px;font-size:10px;color:var(--dark);cursor:pointer;background:none;border:none;display:none;}
 .msg:hover .msg-del{display:block;}
 .msg-del:hover{color:var(--red);}
@@ -300,7 +314,9 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
     <div class="pomo-display" id="pomoDisplay">--:--</div>
     <div class="pomo-task-name" id="pomoTaskName">无绑定任务</div>
     <div class="pomo-btns">
-      <button class="pomo-btn" onclick="startPomo(5)" data-min="5">5m</button>
+      <input id="pomoMinInput" type="number" min="1" max="120" value="5" style="font-family:var(--font);font-size:11px;width:38px;padding:1px 3px;background:#fff;color:#000;border:2px solid;border-color:var(--darker) var(--white) var(--white) var(--darker);outline:none;text-align:center;"/>
+      <span style="font-size:11px;color:var(--dark);">m</span>
+      <button class="pomo-btn" onclick="startPomoCustom()">▶</button>
       <button class="pomo-btn" style="color:var(--red);" onclick="stopPomo()">■</button>
     </div>
     <div class="pomo-auto-row">
@@ -382,11 +398,16 @@ function fmtTime(iso){
 let pomoTimer=null,pomoSec=0,pomoTaskId=null,pomoMin=5,pomoEndWall=0;
 function startPomo(min){
   pomoMin=min;pomoSec=min*60;pomoEndWall=Date.now()+min*60*1000;
-  document.querySelectorAll('.pomo-btn[data-min]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.min)===min));
   document.getElementById('pomoDisplay').classList.add('running');
   if(pomoTimer) clearInterval(pomoTimer);
   pomoTimer=setInterval(tickPomo,500);
   updatePomoDisplay();
+}
+function startPomoCustom(){
+  const inp=document.getElementById('pomoMinInput');
+  const min=Math.max(1,Math.min(120,parseInt(inp.value)||5));
+  inp.value=min;
+  startPomo(min);
 }
 function stopPomo(){
   if(pomoTimer){clearInterval(pomoTimer);pomoTimer=null;}
@@ -410,7 +431,7 @@ function tickPomo(){
     }
     toast('🍅 5分钟完成！');
     const ar=document.getElementById('pomoAutoRepeat');
-    if(ar&&ar.checked) startPomo(pomoMin);
+    if(ar&&ar.checked) startPomoCustom();
     else document.getElementById('pomoDisplay').textContent='--:--';
     return;
   }
@@ -614,6 +635,28 @@ function updateSectionText(id,val){
   item.text=val||'未命名标题';markDirty();
 }
 
+function editMsg(itemId, msgId, el){
+  const item=S.items.find(a=>a.id===itemId); if(!item) return;
+  const msg=item.msgs.find(m=>m.id===msgId); if(!msg) return;
+  const ta=document.createElement('textarea');
+  ta.className='msg-edit-input';
+  ta.value=msg.text;
+  ta.rows=Math.max(2, msg.text.split('
+').length);
+  el.replaceWith(ta);
+  ta.focus(); ta.select();
+  function save(){
+    const val=ta.value.trim();
+    if(val && val!==msg.text){ msg.text=val; msg.edited=true; markDirty(); }
+    renderList();
+  }
+  ta.addEventListener('blur', save);
+  ta.addEventListener('keydown', e=>{
+    if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();ta.blur();}
+    if(e.key==='Escape'){ta.blur();}
+  });
+}
+
 function startEditTitle(id, el){
   const item=S.items.find(a=>a.id===id); if(!item) return;
   const inp=document.createElement('input');
@@ -689,6 +732,21 @@ function renderList(){
       }
       return;
     }
+    // note input
+    const ni=document.getElementById('noteinp-'+item.id);
+    if(ni){
+      ni.value=item.note||'';
+      ni.oninput=e=>{
+        item.note=e.target.value;
+        // auto-grow
+        ni.style.height='auto';
+        ni.style.height=ni.scrollHeight+'px';
+        markDirty();
+      };
+      // initial height
+      ni.style.height='auto';
+      ni.style.height=Math.max(ni.scrollHeight,20)+'px';
+    }
     const ta=document.getElementById('msginp-'+item.id);
     if(ta) ta.onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendMsg(item.id);}};
     const ti=document.getElementById('taginp-'+item.id);
@@ -706,8 +764,8 @@ function renderSection(item){
     <span class="drag-handle" title="拖拽移动">⠿</span>
     <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..." draggable="false"/>
     <div class="sec-header-actions">
-      <button class="icon-btn" style="color:#fff;border-color:transparent;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">+</button>
-      <button class="icon-btn" style="color:#fff;border-color:transparent;" onclick="deleteItem('${item.id}')" title="删除标题">✕</button>
+      <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">＋</button>
+      <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="deleteItem('${item.id}')" title="删除标题">✕</button>
     </div>
   </div>`;
 }
@@ -736,11 +794,15 @@ function renderTask(item){
   h+=`</div></div>`;
 
   h+=`<div class="ap-body${item.collapsed?' hidden':''}" id="apb-${item.id}">`;
-  if(item.note) h+=`<div style="font-size:11px;color:var(--dark);border-left:2px solid var(--dark);padding-left:6px;margin-bottom:4px;">${escHtml(item.note)}</div>`;
+  h+=`<div style="margin-bottom:4px;"><textarea class="note-input" id="noteinp-${item.id}" placeholder="备注..." rows="1">${escHtml(item.note||'')}</textarea></div>`;
   h+=`<div class="tag-row"><input class="tag-input" id="taginp-${item.id}" placeholder="添加 tag..."/><button class="pxl-btn" style="font-size:11px;padding:1px 6px;" onclick="addTag('${item.id}')">+ tag</button></div>`;
   h+=`<div class="sticker-row">贴纸：<input class="sticker-input" id="stickerinp-${item.id}" value="${escHtml(item.stickerEmoji||'🍅')}" maxlength="4"/><button class="pxl-btn" style="font-size:11px;padding:1px 6px;" onclick="setStickerEmoji('${item.id}')">设置</button><span style="font-size:10px;color:var(--dark);margin-left:4px;">番茄完成时自动贴</span></div>`;
   item.msgs.forEach(m=>{
-    h+=`<div class="msg"><div>${escHtml(m.text)}</div><div class="msg-time">${fmtTime(m.ts)}</div><button class="msg-del" onclick="deleteMsg('${item.id}','${m.id}')">✕</button></div>`;
+    h+=`<div class="msg" id="msg-${m.id}">`;
+    h+=`<div class="msg-text" ondblclick="editMsg('${item.id}','${m.id}',this)" title="双击编辑">${escHtml(m.text)}</div>`;
+    h+=`<div class="msg-time">${fmtTime(m.ts)}${m.edited?' (已编辑)':''}</div>`;
+    h+=`<button class="msg-del" onclick="deleteMsg('${item.id}','${m.id}')">✕</button>`;
+    h+=`</div>`;
   });
   h+=`<div class="compose-row"><textarea class="compose-input" id="msginp-${item.id}" rows="2" placeholder="随时写下想法、情绪、insight..."></textarea><button class="pxl-btn primary" style="align-self:flex-end;" onclick="sendMsg('${item.id}')">发送</button></div>`;
   h+=`</div></div>`;
@@ -893,6 +955,10 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveFileAPI();}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();newProject();}
   if((e.ctrlKey||e.metaKey)&&e.key==='o'){e.preventDefault();openFileAPI();}
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  const pi=document.getElementById('pomoMinInput');
+  if(pi) pi.addEventListener('keydown',e=>{if(e.key==='Enter') startPomoCustom();});
 });
 
 updateStatus();

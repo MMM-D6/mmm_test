@@ -759,8 +759,8 @@ function renderList(){
 }
 
 function renderSection(item){
-  return `<div class="sec-header" id="sec-${item.id}" draggable="true">
-    <span class="drag-handle" title="拖拽移动">⠿</span>
+  return `<div class="sec-header" id="sec-${item.id}">
+    <span class="drag-handle" title="拖拽移动" draggable="true" onmousedown="startHandleDrag(event,'${item.id}')">⠿</span>
     <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..." draggable="false"/>
     <div class="sec-header-actions">
       <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">+</button>
@@ -774,9 +774,9 @@ function renderTask(item){
   const bc=item.done?'var(--green)':'var(--blue)';
   const stHtml=(item.stickers&&item.stickers.length)?item.stickers.map(s=>`<span class="sticker" title="${fmtTime(s.ts)}">${s.emoji}</span>`).join(''):'';
 
-  let h=`<div class="ap-card${item.done?' done':''}" id="apc-${item.id}" style="border-left-color:${bc};" draggable="true">`;
+  let h=`<div class="ap-card${item.done?' done':''}" id="apc-${item.id}" style="border-left-color:${bc};">`;
   h+=`<div class="ap-top">`;
-  h+=`<span class="drag-handle" title="拖拽移动">⠿</span>`;
+  h+=`<span class="drag-handle" title="拖拽移动" draggable="true" onmousedown="startHandleDrag(event,'${item.id}')">⠿</span>`;
   h+=`<div class="ap-check" onclick="toggleAP('${item.id}')">${item.done?'✓':''}</div>`;
   h+=`<div class="ap-title" ondblclick="startEditTitle('${item.id}',this)" title="双击编辑">${escHtml(item.text)}</div>`;
   if(item.tags&&item.tags.length){
@@ -808,24 +808,34 @@ function renderTask(item){
   return h;
 }
 
-// ── drag and drop ──
+// ── drag and drop (handle-only) ──
 let dragId=null;
+
+function startHandleDrag(e, id){
+  // only trigger from the handle itself
+  dragId=id;
+  const cardEl=document.getElementById('apc-'+id)||document.getElementById('sec-'+id);
+  if(cardEl) cardEl.classList.add('dragging');
+}
 
 function initDrag(){
   const list=document.getElementById('apList');
   if(!list) return;
 
-  list.querySelectorAll('[draggable="true"]').forEach(el=>{
-    el.addEventListener('dragstart',e=>{
-      dragId=el.id.replace('sec-','').replace('apc-','');
-      el.classList.add('dragging');
+  // dragstart only fires on elements with draggable="true" — the handles
+  list.querySelectorAll('.drag-handle[draggable="true"]').forEach(handle=>{
+    handle.addEventListener('dragstart',e=>{
       e.dataTransfer.effectAllowed='move';
+      // dragId already set by onmousedown
     });
-    el.addEventListener('dragend',e=>{
-      el.classList.remove('dragging');
+    handle.addEventListener('dragend',e=>{
       clearDropIndicators();
       dragId=null;
     });
+  });
+
+  // dragover and drop on the cards themselves
+  list.querySelectorAll('.ap-card, .sec-header').forEach(el=>{
     el.addEventListener('dragover',e=>{
       if(!dragId) return;
       e.preventDefault();
@@ -845,13 +855,10 @@ function initDrag(){
     el.addEventListener('drop',e=>{
       e.preventDefault();
       if(!dragId) return;
-      const targetEl=el;
-      const targetId=targetEl.id.replace('sec-','').replace('apc-','');
+      const targetId=el.id.replace('sec-','').replace('apc-','');
       if(dragId===targetId){clearDropIndicators();return;}
-      const rect=targetEl.getBoundingClientRect();
-      const mid=rect.top+rect.height/2;
-      const before=e.clientY<mid;
-      // reorder S.items
+      const rect=el.getBoundingClientRect();
+      const before=e.clientY<rect.top+rect.height/2;
       const fromIdx=S.items.findIndex(a=>a.id===dragId);
       const toIdx=S.items.findIndex(a=>a.id===targetId);
       if(fromIdx===-1||toIdx===-1){clearDropIndicators();return;}
@@ -864,7 +871,7 @@ function initDrag(){
 }
 
 function clearDropIndicators(){
-  document.querySelectorAll('[draggable="true"]').forEach(el=>{
+  document.querySelectorAll('.ap-card,.sec-header').forEach(el=>{
     el.style.borderTop='';el.style.borderBottom='';
   });
 }

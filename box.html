@@ -524,6 +524,9 @@ function loadFromJSON(text,filename){
       delete S.aps;
     }
     S.items.forEach(item=>{
+      if(item.type==='section'){
+        if(item.collapsed===undefined) item.collapsed=false;
+      }
       if(item.type==='task'){
         if(!item.tags) item.tags=[];
         if(!item.msgs) item.msgs=[];
@@ -569,7 +572,7 @@ function doImport(){
     let n=0;
     if(data.project&&(!S.project||S.project==='未命名项目')){S.project=data.project;document.getElementById('projTitleInput').value=S.project;updateTitlebar();}
     const mkTask=(text,note)=>({id:uid(),type:'task',text,note:note||'',done:false,doneAt:'',createdAt:ts(),collapsed:false,tags:[],msgs:[],stickers:[],stickerEmoji:'🍅'});
-    const mkSection=(name)=>({id:uid(),type:'section',text:name,createdAt:ts()});
+    const mkSection=(name)=>({id:uid(),type:'section',text:name,createdAt:ts(),collapsed:false});
     if(data.sections){
       data.sections.forEach(sec=>{
         if(sec.name){S.items.push(mkSection(sec.name));n++;}
@@ -594,7 +597,7 @@ function addAP(){
   setTimeout(()=>{const l=document.getElementById('apList');if(l.lastElementChild) l.lastElementChild.scrollIntoView({behavior:'smooth'});},50);
 }
 function addSection(){
-  S.items.push({id:uid(),type:'section',text:'新标题',createdAt:ts()});
+  S.items.push({id:uid(),type:'section',text:'新标题',createdAt:ts(),collapsed:false});
   markDirty();renderList();
   // auto-focus the new section edit
   setTimeout(()=>{
@@ -608,21 +611,36 @@ function toggleAP(id){
   const item=S.items.find(a=>a.id===id);if(!item||item.type!=='task') return;
   item.done=!item.done;item.doneAt=item.done?ts():'';
   if(item.done){
-    // move done task after last non-done task in same section group
     const idx=S.items.indexOf(item);
-    S.items.splice(idx,1);
-    // find insertion point: after last undone task before next section
-    let insertAt=S.items.length;
-    for(let i=0;i<S.items.length;i++){
-      if(S.items[i].type==='section'&&i>0){insertAt=i;break;}
+    // find the section this task belongs to (last section before it)
+    let sectionStart=0;
+    for(let i=idx-1;i>=0;i--){
+      if(S.items[i].type==='section'){sectionStart=i;break;}
     }
-    S.items.splice(insertAt,0,item);
+    // find the end of this section (next section or end of list)
+    let sectionEnd=S.items.length;
+    for(let i=idx+1;i<S.items.length;i++){
+      if(S.items[i].type==='section'){sectionEnd=i;break;}
+    }
+    // move to end of this section only
+    S.items.splice(idx,1);
+    // recalculate sectionEnd after splice
+    let newEnd=S.items.length;
+    for(let i=sectionStart;i<S.items.length;i++){
+      if(S.items[i].type==='section'&&i>sectionStart){newEnd=i;break;}
+    }
+    S.items.splice(newEnd,0,item);
   }
   markDirty();renderList();
 }
 function deleteItem(id){
   S.items=S.items.filter(a=>a.id!==id);
   if(pomoTaskId===id) unbindPomo();
+  markDirty();renderList();
+}
+function toggleSectionCollapse(id){
+  const item=S.items.find(a=>a.id===id);if(!item) return;
+  item.collapsed=!item.collapsed;
   markDirty();renderList();
 }
 function toggleCollapse(id){const item=S.items.find(a=>a.id===id);if(!item) return;item.collapsed=!item.collapsed;markDirty();renderList();}
@@ -715,8 +733,17 @@ function renderList(){
     updateStatus();return;
   }
 
+  // build collapsed set: tasks under a collapsed section are hidden
+  const hiddenIds=new Set();
+  let inCollapsed=false;
+  S.items.forEach(item=>{
+    if(item.type==='section'){inCollapsed=!!item.collapsed;}
+    else if(inCollapsed){hiddenIds.add(item.id);}
+  });
+
   list.innerHTML=S.items.map(item=>{
     if(item.type==='section') return renderSection(item);
+    if(hiddenIds.has(item.id)) return '';
     return renderTask(item);
   }).join('');
 
@@ -759,11 +786,13 @@ function renderList(){
 }
 
 function renderSection(item){
+  const chev=item.collapsed?'▶':'▼';
   return `<div class="sec-header" id="sec-${item.id}">
     <span class="drag-handle" title="拖拽移动" draggable="true" onmousedown="startHandleDrag(event,'${item.id}')">⠿</span>
     <input class="sec-edit-input" id="secinp-${item.id}" value="${escHtml(item.text)}" placeholder="标题名称..." draggable="false"/>
     <div class="sec-header-actions">
       <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="addTaskAfterSection('${item.id}')" title="在此标题下添加条目">+</button>
+      <button class="icon-btn" style="color:#fff;border-color:transparent;" onclick="toggleSectionCollapse('${item.id}')" title="折叠/展开">${chev}</button>
       <button class="icon-btn" style="color:#fff;border-color:transparent;font-weight:bold;" onclick="deleteItem('${item.id}')" title="删除标题">✕</button>
     </div>
   </div>`;

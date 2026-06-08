@@ -202,6 +202,7 @@ body{display:flex;flex-direction:column;}
         <div class="srow"><span class="sl">发音准确</span><div class="bt"><div class="bf" id="bAcc" style="width:0%"></div></div><span class="sv" id="vAcc" style="color:var(--mid);">--</span></div>
         <div class="srow"><span class="sl">流畅自然</span><div class="bt"><div class="bf" id="bFlu" style="width:0%"></div></div><span class="sv" id="vFlu" style="color:var(--mid);">--</span></div>
         <div class="srow"><span class="sl">内容完整</span><div class="bt"><div class="bf" id="bCom" style="width:0%"></div></div><span class="sv" id="vCom" style="color:var(--mid);">--</span></div>
+        <div class="srow"><span class="sl">语调韵律</span><div class="bt"><div class="bf" id="bPro" style="width:0%"></div></div><span class="sv" id="vPro" style="color:var(--mid);">--</span></div>
         <div id="histRow">
           <span style="color:var(--mid);">最高:</span>
           <span id="bestDisp" style="font-weight:bold;font-family:var(--fm);color:var(--blue);">--</span>
@@ -546,10 +547,16 @@ async function startRec(){
   const speechConfig=SpeechSDK.SpeechConfig.fromSubscription(azKey,azRegion);
   speechConfig.speechRecognitionLanguage='en-GB';
 
-  const paCfg=new SpeechSDK.PronunciationAssessmentConfig(refText);
-  paCfg.gradingSystem=SpeechSDK.PronunciationAssessmentGradingSystem.HundredMark;
-  paCfg.granularity=SpeechSDK.PronunciationAssessmentGranularity.Phoneme;
-  paCfg.enableMiscue=true;
+  // FIX: use fromJSON to ensure HundredMark grading system is correctly applied.
+  // Direct property assignment (.gradingSystem = ...) is silently ignored by the SDK
+  // and falls back to FivePoint (5-point scale), causing single-digit scores.
+  const paCfg=SpeechSDK.PronunciationAssessmentConfig.fromJSON(JSON.stringify({
+    referenceText: refText,
+    gradingSystem: 'HundredMark',
+    granularity: 'Phoneme',
+    enableMiscue: true,
+    enableProsodyAssessment: true
+  }));
 
   const audioConfig=SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
@@ -603,20 +610,46 @@ function stopRec(){
 }
 
 function handleResult(paResult){
-  const acc =Math.round(paResult.accuracyScore||0);
-  const flu =Math.round(paResult.fluencyScore||0);
-  const com =Math.round(paResult.completenessScore||0);
+  // ── raw debug: inspect full SDK response in console ──
+  const detail=paResult.detailResult||{};
+  console.log('[PA] raw detailResult:', JSON.stringify(detail, null, 2));
 
-  // weighted: accuracy 50%, fluency 35%, completeness 15%
-  const overall=Math.round(acc*0.50+flu*0.35+com*0.15);
+  const acc =Math.round(paResult.accuracyScore   || 0);
+  const flu =Math.round(paResult.fluencyScore    || 0);
+  const com =Math.round(paResult.completenessScore|| 0);
 
-  const grade=overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
-  const gradeColor={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
-  const gradeTxt={A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+  // Prosody score: Azure returns it as PronScore on the top-level detailResult
+  // or sometimes as prosodyScore directly on paResult. Read both paths defensively.
+  let pro = Math.round(
+    paResult.prosodyScore ||
+    detail.PronScore      ||
+    detail.pronScore      ||
+    0
+  );
+  // If prosody came back 0 but we have a valid session, compute a rough proxy:
+  // penalise heavily for omissions/insertions, reward smooth fluency
+  if(pro === 0 && flu > 0){
+    const wordList = detail.Words || [];
+    const total    = wordList.length || 1;
+    const errors   = wordList.filter(w=>{
+      const et=(w.PronunciationAssessment||{}).ErrorType||'None';
+      return et==='Omission'||et==='Insertion';
+    }).length;
+    pro = Math.max(0, Math.round(flu * (1 - errors / total)));
+  }
 
-  document.getElementById('gradeBox').textContent=grade;
-  document.getElementById('gradeBox').style.color=gradeColor;
-  document.getElementById('gradeSub').textContent=gradeTxt;
+  console.log('[PA] scores: acc=%d flu=%d com=%d pro=%d', acc, flu, com, pro);
+
+  // Weighted composite: Accuracy 40%, Fluency 30%, Completeness 15%, Prosody 15%
+  const overall = Math.round(acc*0.40 + flu*0.30 + com*0.15 + pro*0.15);
+
+  const grade      = overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
+  const gradeColor = {A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  const gradeTxt   = {A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+
+  document.getElementById('gradeBox').textContent = grade;
+  document.getElementById('gradeBox').style.color  = gradeColor;
+  document.getElementById('gradeSub').textContent  = gradeTxt;
 
   if(lastScore!==null){
     const diff=overall-lastScore;
@@ -626,25 +659,26 @@ function handleResult(paResult){
   }
   lastScore=overall;
 
-  setBar('Acc',acc);setBar('Flu',flu);setBar('Com',com);
+  setBar('Acc',acc);
+  setBar('Flu',flu);
+  setBar('Com',com);
+  setBar('Pro',pro);
 
-  // word data — score based on accuracy only, ignore stress
-  const detail=paResult.detailResult;
+  // ── word-level data ──
   const wordData=[];
   if(detail&&detail.Words){
     for(const w of detail.Words){
-      const wpa=w.PronunciationAssessment||{};
-      const phonemes=w.Phonemes||[];
-      // only flag phonemes with accuracy < 50 as real errors
-      const badPhonemes=phonemes
+      const wpa      = w.PronunciationAssessment || {};
+      const phonemes = w.Phonemes || [];
+      const badPhonemes = phonemes
         .filter(p=>(p.PronunciationAssessment?.AccuracyScore||100)<50)
         .map(p=>'/'+p.Phoneme+'/');
       const ipa='/'+phonemes.map(p=>p.Phoneme||'').join('')+'/';
       wordData.push({
-        word:w.Word||'',
-        score:Math.round(wpa.AccuracyScore||0),
-        error:wpa.ErrorType||'None',
-        ipa:ipa==='///'?'':ipa,
+        word: w.Word||'',
+        score: Math.round(wpa.AccuracyScore||0),
+        error: wpa.ErrorType||'None',
+        ipa:  ipa==='///'?'':ipa,
         badPhonemes
       });
     }
@@ -678,7 +712,7 @@ function resetScore(){
   document.getElementById('gradeSub').textContent='';
   document.getElementById('scoreDiff').textContent='';
   document.getElementById('encouragement').textContent='';
-  ['Acc','Flu','Com'].forEach(k=>{
+  ['Acc','Flu','Com','Pro'].forEach(k=>{
     document.getElementById('b'+k).style.width='0%';
     document.getElementById('v'+k).textContent='--';
     document.getElementById('v'+k).style.color='var(--mid)';

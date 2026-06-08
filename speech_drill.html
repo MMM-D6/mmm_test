@@ -440,13 +440,10 @@ function startRec(){
   speechConfig.speechRecognitionLanguage='en-GB';
 
   // Pronunciation Assessment config
-  const paCfg=new SpeechSDK.PronunciationAssessmentConfig(
-    refText,
-    SpeechSDK.PronunciationAssessmentGradingSystem.HundredMark,
-    SpeechSDK.PronunciationAssessmentDimension.Comprehensive,
-    true  // enableMiscue
-  );
-  paCfg.enableProsodyAssessment=true;
+  const paCfg=new SpeechSDK.PronunciationAssessmentConfig(refText);
+  paCfg.gradingSystem=SpeechSDK.PronunciationAssessmentGradingSystem.HundredMark;
+  paCfg.granularity=SpeechSDK.PronunciationAssessmentGranularity.Phoneme;
+  paCfg.enableMiscue=true;
 
   // Audio config — default microphone
   const audioConfig=SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();

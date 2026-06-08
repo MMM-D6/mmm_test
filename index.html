@@ -2295,6 +2295,27 @@ function deleteEngCard(id){
   saveState(); renderEngCards();
 }
 
+function exportEngCard(id){
+  const c = (S.engCards||[]).find(x=>x.id==id);
+  if(!c) return;
+  const data = {
+    id: c.id,
+    text: c.text,
+    note: c.note||'',
+    highlights: c.highlights||[],
+    masks: c.masks||[],
+    createdAt: c.createdAt,
+    editedAt: c.editedAt||null
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const slug = (c.text||'card').slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
+  a.download = 'engcard_' + slug + '_' + c.id + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ── selection popup ──
 function engOnSelect(e, cardId){
   const sel=window.getSelection();
@@ -2485,8 +2506,9 @@ function renderEngCards(){
     const ts=document.createElement('span'); ts.style.cssText='font-family:var(--font-pixel);font-size:6px;color:#888;'; ts.textContent=fmtDT(c.createdAt);
     const acts=document.createElement('div'); acts.style.cssText='display:flex;gap:4px;';
     const eb=document.createElement('button'); eb.style.cssText='font-size:12px;background:var(--surface);border:2px solid;border-color:var(--border-lt) var(--border-dk) var(--border-dk) var(--border-lt);cursor:pointer;padding:1px 5px;'; eb.textContent='[EDIT]'; eb.onclick=()=>openEngCardModal(c.id);
+    const xb=document.createElement('button'); xb.style.cssText='font-size:12px;background:var(--surface);border:2px solid;border-color:var(--border-lt) var(--border-dk) var(--border-dk) var(--border-lt);cursor:pointer;padding:1px 5px;color:#000080;'; xb.textContent='[JSON]'; xb.onclick=()=>exportEngCard(c.id);
     const db=document.createElement('button'); db.style.cssText='font-size:12px;background:var(--surface);border:2px solid;border-color:var(--border-lt) var(--border-dk) var(--border-dk) var(--border-lt);cursor:pointer;padding:1px 5px;color:#c0392b;'; db.textContent='✕'; db.onclick=()=>{ if(confirm('删除此卡片？')) deleteEngCard(c.id); };
-    acts.appendChild(eb); acts.appendChild(db);
+    acts.appendChild(eb); acts.appendChild(xb); acts.appendChild(db);
     hdr.appendChild(ts); hdr.appendChild(acts); wrap.appendChild(hdr);
     const body=document.createElement('div'); body.className='eng-card-body';
     body.innerHTML=engApplyAnnotations(c.text,c.highlights,c.masks,c._maskHidden,c.id);

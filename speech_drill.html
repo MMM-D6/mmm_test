@@ -350,14 +350,38 @@ function renderScored(wordData){
   if(!cur)return;
   const text=origText, masks=cur.masks||[];
 
-  // spoken word set for mask evaluation (exclude insertions)
+  // ── build two maps ──
+  // 1. spokenSet: words actually said (not Insertion), for mask evaluation
   const spokenSet=new Set(
-    wordData.filter(w=>w.error!=='Insertion')
+    wordData
+      .filter(w=>w.error!=='Insertion')
       .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
       .filter(w=>w.length>0)
   );
 
-  // mask result: need >=60% of mask words to be spoken
+  // 2. omittedSet: words Azure explicitly flagged as Omission
+  const omittedSet=new Set(
+    wordData
+      .filter(w=>w.error==='Omission')
+      .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
+      .filter(w=>w.length>0)
+  );
+
+  // 3. charInfo: map char positions in original text → word data
+  //    Only for words that were actually spoken (skip Insertions — they have no position in ref text)
+  const charInfo={};
+  let sf=0;
+  for(const wd of wordData){
+    if(wd.error==='Insertion')continue; // no position in reference text
+    const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
+    if(!clean)continue;
+    const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
+    if(idx<0)continue;
+    for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;
+    sf=idx+clean.length;
+  }
+
+  // mask result: >=60% of mask's words must be in spokenSet
   const maskRes={};
   masks.forEach((m,i)=>{
     const chunk=text.slice(m.start,m.end);
@@ -365,56 +389,39 @@ function renderScored(wordData){
     maskRes[i]=(mw.length===0||mw.filter(w=>spokenSet.has(w)).length/mw.length>=0.6)?'correct':'wrong';
   });
 
-  // char→word map: align SDK words back to original text positions
-  // strip punctuation for matching but track original position
-  const charInfo={};
-  let sf=0;
-  for(const wd of wordData){
-    // strip leading/trailing punctuation from SDK word for matching
-    const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
-    if(!clean)continue;
-    const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
-    if(idx<0)continue;
-    // mark every char in this word's span with the word data
-    for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;
-    sf=idx+clean.length;
-  }
-
   const maskRanges=masks.map((m,i)=>({...m,i}));
   function getMask(p){return maskRanges.find(m=>p>=m.start&&p<m.end)||null;}
 
+  // ── render ──
   let html='',pos=0;
   while(pos<text.length){
     const ch=text[pos];
     if(ch==='\n'){html+='<br>';pos++;continue;}
     if(ch===' '){html+=' ';pos++;continue;}
-    // find end of token (space or newline)
     let end=pos;
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
     const token=text.slice(pos,end);
     const mInfo=getMask(pos);
+
     if(mInfo){
       const res=maskRes[mInfo.i];
       const bg=res==='correct'?'background:#003399;color:#fff':'background:#cc0000;color:#fff';
       html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(token)}</span>`;
     }else{
-      // look up word data: check any char in the token span
+      // find word data for this token — check charInfo, then fall back to omittedSet
       let wd=charInfo[pos];
-      if(!wd){
-        // fallback: scan all chars in token for a hit
-        for(let p=pos;p<end&&!wd;p++)wd=charInfo[p];
-      }
+      if(!wd){for(let p=pos+1;p<end&&!wd;p++)wd=charInfo[p];}
+
       let cls='';
       if(wd){
-        const err=wd.error||'None';
-        if(err==='Omission')cls='missed';
-        else if(err==='Insertion'){cls='';} // insertions don't map to reference text, skip coloring
-        else{
-          // use AccuracyScore: good>=80, ok>=60, bad<60
-          if(wd.score>=80)cls='good';
-          else if(wd.score>=60)cls='ok';
-          else cls='bad';
-        }
+        if(wd.error==='Omission') cls='missed';
+        else if(wd.score>=80)     cls='good';
+        else if(wd.score>=60)     cls='ok';
+        else                      cls='bad';
+      } else {
+        // charInfo miss: check if this token matches an omitted word
+        const tokenClean=token.toLowerCase().replace(/[^a-z']/g,'');
+        if(tokenClean.length>0&&omittedSet.has(tokenClean)) cls='missed';
       }
       html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
     }
@@ -481,7 +488,7 @@ document.addEventListener('click',e=>{
 // ── waveform ──
 const WAVE_BARS=9;
 function startWave(stream){
-  stopWave(); // always clean up previous session first
+  stopWave();
   waveStream=stream;
   waveActx=new(window.AudioContext||window.webkitAudioContext)();
   const src=waveActx.createMediaStreamSource(stream);
@@ -522,7 +529,6 @@ async function startRec(){
 
   resetScore();renderPlain();
 
-  // get mic stream for waveform display (separate from SDK's internal audio pipeline)
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     startWave(stream);
@@ -544,12 +550,11 @@ async function startRec(){
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
   paCfg.applyTo(recognizer);
 
-  // collect all recognized segments during continuous recording
   const segments=[];
   recognizer.recognized=(s,e)=>{
     if(e.result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
       segments.push(e.result);
-      console.log('[PA] segment:', e.result.text);
+      console.log('[PA] segment:',e.result.text);
     }
   };
   recognizer._segments=segments;
@@ -574,7 +579,6 @@ async function startRec(){
 function stopRec(){
   if(!isRec||!recognizer)return;
   isRec=false;
-
   const m=document.getElementById('micBtn');
   m.classList.remove('on');m.innerHTML='🎙';
   document.getElementById('micLbl').textContent='点击录音';
@@ -582,19 +586,16 @@ function stopRec(){
 
   const rec=recognizer;
   recognizer=null;
-
   rec.stopContinuousRecognitionAsync(
     ()=>{
       stopWave();
-      const segments=rec._segments||[];
-      console.log('[PA] total segments:',segments.length);
-      if(!segments.length){
+      const segs=rec._segments||[];
+      console.log('[PA] total segments:',segs.length);
+      if(!segs.length){
         document.getElementById('sMic').textContent='未识别到语音，请重试';
-        rec.close();
-        return;
+        rec.close();return;
       }
-      // use the last (most complete) segment for pronunciation assessment
-      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(segments[segments.length-1]);
+      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(segs[segs.length-1]);
       handleResult(paResult);
       rec.close();
     },
@@ -610,14 +611,9 @@ function stopRec(){
 function backToSetup(){
   if(isRec&&recognizer){
     isRec=false;
-    const rec=recognizer;
-    recognizer=null;
-    try{
-      rec.stopContinuousRecognitionAsync(
-        ()=>{rec.close();},
-        ()=>{try{rec.close();}catch(e){}}
-      );
-    }catch(e){try{rec.close();}catch(_){}}
+    const rec=recognizer;recognizer=null;
+    try{rec.stopContinuousRecognitionAsync(()=>rec.close(),()=>{try{rec.close();}catch(e){}});}
+    catch(e){try{rec.close();}catch(_){}}
     stopWave();
   }
   document.getElementById('app').style.display='none';
@@ -625,46 +621,61 @@ function backToSetup(){
 }
 
 function handleResult(paResult){
-  // ── raw debug: inspect full SDK response in console ──
   const detail=paResult.detailResult||{};
-  console.log('[PA] raw detailResult:', JSON.stringify(detail, null, 2));
+  console.log('[PA] raw detailResult:', JSON.stringify(detail,null,2));
 
-  const acc =Math.round(paResult.accuracyScore   || 0);
-  const flu =Math.round(paResult.fluencyScore    || 0);
-  const com =Math.round(paResult.completenessScore|| 0);
+  const acc=Math.round(paResult.accuracyScore    ||0);
+  const flu=Math.round(paResult.fluencyScore     ||0);
+  const com=Math.round(paResult.completenessScore||0);
 
-  // Prosody score: Azure returns it as PronScore on the top-level detailResult
-  // or sometimes as prosodyScore directly on paResult. Read both paths defensively.
-  let pro = Math.round(
-    paResult.prosodyScore ||
-    detail.PronScore      ||
-    detail.pronScore      ||
-    0
-  );
-  // If prosody came back 0 but we have a valid session, compute a rough proxy:
-  // penalise heavily for omissions/insertions, reward smooth fluency
-  if(pro === 0 && flu > 0){
-    const wordList = detail.Words || [];
-    const total    = wordList.length || 1;
-    const errors   = wordList.filter(w=>{
-      const et=(w.PronunciationAssessment||{}).ErrorType||'None';
-      return et==='Omission'||et==='Insertion';
-    }).length;
-    pro = Math.max(0, Math.round(flu * (1 - errors / total)));
+  // Prosody: try multiple field paths defensively
+  let pro=Math.round(paResult.prosodyScore||detail.PronScore||detail.pronScore||0);
+  if(pro===0&&flu>0){
+    // fallback proxy: fluency scaled by error ratio
+    const wl=detail.Words||[];
+    const errs=wl.filter(w=>{const et=(w.PronunciationAssessment||{}).ErrorType||'None';return et==='Omission'||et==='Insertion';}).length;
+    pro=Math.max(0,Math.round(flu*(1-errs/(wl.length||1))));
   }
 
-  console.log('[PA] scores: acc=%d flu=%d com=%d pro=%d', acc, flu, com, pro);
+  // ── word data (no phoneme fields needed) ──
+  const wordData=[];
+  if(detail&&detail.Words){
+    for(const w of detail.Words){
+      const wpa=w.PronunciationAssessment||{};
+      wordData.push({
+        word:  w.Word||'',
+        score: Math.round(wpa.AccuracyScore||0),
+        error: wpa.ErrorType||'None'
+      });
+    }
+  }
 
-  // Weighted composite: Accuracy 40%, Fluency 30%, Completeness 15%, Prosody 15%
-  const overall = Math.round(acc*0.40 + flu*0.30 + com*0.15 + pro*0.15);
+  // ── omission penalty ──
+  // Azure's completenessScore already reflects omissions, but for memory-drill
+  // purposes we apply an extra penalty so missing words hurt the overall score more.
+  // Formula: for each omitted word, deduct (100 / totalRefWords) points from com.
+  const refWordCount=origText.replace(/\n/g,' ').trim().split(/\s+/).filter(w=>w.length>0).length||1;
+  const omissionCount=wordData.filter(w=>w.error==='Omission').length;
+  const insertionCount=wordData.filter(w=>w.error==='Insertion').length;
+  // penalty: each omitted word costs proportionally; cap com floor at 0
+  const comPenalised=Math.max(0, com - Math.round(omissionCount/refWordCount*100));
+  // fluency penalty for insertions (extra words break fluency): already in flu, but
+  // we nudge it slightly if insertion rate is high
+  const fluPenalised=Math.max(0, flu - Math.round(insertionCount/refWordCount*50));
 
-  const grade      = overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
-  const gradeColor = {A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
-  const gradeTxt   = {A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+  console.log('[PA] acc=%d flu=%d com=%d pro=%d | omissions=%d insertions=%d comP=%d fluP=%d',
+    acc,flu,com,pro,omissionCount,insertionCount,comPenalised,fluPenalised);
 
-  document.getElementById('gradeBox').textContent = grade;
-  document.getElementById('gradeBox').style.color  = gradeColor;
-  document.getElementById('gradeSub').textContent  = gradeTxt;
+  // Weighted composite: Accuracy 35%, Fluency(penalised) 25%, Completeness(penalised) 25%, Prosody 15%
+  const overall=Math.round(acc*0.35 + fluPenalised*0.25 + comPenalised*0.25 + pro*0.15);
+
+  const grade      =overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
+  const gradeColor ={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  const gradeTxt   ={A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+
+  document.getElementById('gradeBox').textContent=grade;
+  document.getElementById('gradeBox').style.color =gradeColor;
+  document.getElementById('gradeSub').textContent =gradeTxt;
 
   if(lastScore!==null){
     const diff=overall-lastScore;
@@ -675,22 +686,9 @@ function handleResult(paResult){
   lastScore=overall;
 
   setBar('Acc',acc);
-  setBar('Flu',flu);
-  setBar('Com',com);
+  setBar('Flu',fluPenalised);
+  setBar('Com',comPenalised);
   setBar('Pro',pro);
-
-  // ── word-level data ──
-  const wordData=[];
-  if(detail&&detail.Words){
-    for(const w of detail.Words){
-      const wpa=w.PronunciationAssessment||{};
-      wordData.push({
-        word: w.Word||'',
-        score: Math.round(wpa.AccuracyScore||0),
-        error: wpa.ErrorType||'None'
-      });
-    }
-  }
 
   renderScored(wordData);
 

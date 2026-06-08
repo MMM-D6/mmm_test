@@ -61,7 +61,7 @@ body{display:flex;flex-direction:column;}
 
 /* word colors */
 .w{border-radius:2px;padding:0 2px;}
-.w.good  {background:#d4edda;color:#155724;}
+.w.good  {background:#cce0ff;color:#003380;}
 .w.ok    {background:#fff3cd;color:#5c3d00;}
 .w.bad   {background:#f8d7da;color:#721c24;}
 .w.missed{background:#e2e3e5;color:#383d41;text-decoration:line-through;}
@@ -167,10 +167,10 @@ body{display:flex;flex-direction:column;}
       <button class="btn" id="umBtn" onclick="clearMask()" disabled style="color:#cc0000;">✕ 取消</button>
       <button class="btn" onclick="resetView()">↺ 重置</button>
       <div id="legendRow" style="display:none;margin-left:6px;" class="legend">
-        <span><span class="ldot" style="background:#d4edda;border:1px solid #155724;"></span>好</span>
-        <span><span class="ldot" style="background:#fff3cd;border:1px solid #5c3d00;"></span>可</span>
-        <span><span class="ldot" style="background:#f8d7da;border:1px solid #721c24;"></span>差</span>
-        <span><span class="ldot" style="background:#e2e3e5;border:1px solid #383d41;"></span>漏</span>
+        <span><span class="ldot" style="background:#cce0ff;border:1px solid #003380;"></span>准确</span>
+        <span><span class="ldot" style="background:#fff3cd;border:1px solid #5c3d00;"></span>偏差</span>
+        <span><span class="ldot" style="background:#f8d7da;border:1px solid #721c24;"></span>错误</span>
+        <span><span class="ldot" style="background:#e2e3e5;border:1px solid #383d41;"></span>漏读</span>
       </div>
     </div>
 
@@ -191,7 +191,6 @@ body{display:flex;flex-direction:column;}
         <div class="srow"><span class="sl">发音准确</span><div class="bt"><div class="bf" id="bAcc" style="width:0%"></div></div><span class="sv" id="vAcc" style="color:var(--mid);">--</span></div>
         <div class="srow"><span class="sl">流畅自然</span><div class="bt"><div class="bf" id="bFlu" style="width:0%"></div></div><span class="sv" id="vFlu" style="color:var(--mid);">--</span></div>
         <div class="srow"><span class="sl">覆盖率</span><div class="bt"><div class="bf" id="bCom" style="width:0%"></div></div><span class="sv" id="vCom" style="color:var(--mid);">--</span></div>
-        <div class="srow"><span class="sl">语调韵律</span><div class="bt"><div class="bf" id="bPro" style="width:0%"></div></div><span class="sv" id="vPro" style="color:var(--mid);">--</span></div>
         <div id="histRow">
           <span style="color:var(--mid);">最高:</span>
           <span id="bestDisp" style="font-weight:bold;font-family:var(--fm);color:var(--blue);">--</span>
@@ -243,7 +242,7 @@ let isRec=false, recognizer=null;
 let drillN=0, bestScores={}, lastScore=null;
 let azKey='', azRegion='';
 // waveform
-let waveCtx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
+let waveActx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
 
 (function(){
   azKey    = localStorage.getItem('sd_key')||'';
@@ -304,11 +303,6 @@ function startDrill(){
   document.getElementById('app').style.display='flex';
   loadCard();
 }
-function backToSetup(){
-  if(isRec)stopRec();
-  document.getElementById('app').style.display='none';
-  document.getElementById('setup').style.display='flex';
-}
 function loadCard(){
   const idx=cards.length>1?parseInt(document.getElementById('cardSel').value)||0:0;
   cur=JSON.parse(JSON.stringify(cards[idx]));
@@ -353,23 +347,14 @@ function renderPlain(){
 }
 
 function renderScored(wordData){
+  // wordData: [{word, score}] — score=-1 means missed
   if(!cur)return;
   const text=origText, masks=cur.masks||[];
 
-  // spokenSet: words actually said (not insertions, not missed) — for mask evaluation
-  const spokenSet=new Set(
-    wordData
-      .filter(w=>w.error!=='Insertion'&&w.error!=='Missed')
-      .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
-      .filter(w=>w.length>0)
-  );
-
-  // char→word map: align wordData entries back to positions in original text
-  // wordData is already aligned to refTokens order, so we walk the text sequentially
+  // char→wd map
   const charInfo={};
   let sf=0;
   for(const wd of wordData){
-    if(wd.error==='Insertion')continue; // insertions have no ref text position
     const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
     if(!clean)continue;
     const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
@@ -378,15 +363,20 @@ function renderScored(wordData){
     sf=idx+clean.length;
   }
 
-  // mask result: >=60% of mask words spoken
+  // spokenSet for mask evaluation
+  const spokenSet=new Set(
+    wordData.filter(w=>w.score!==-1)
+      .map(w=>w.word.toLowerCase().replace(/[^a-z\']/g,''))
+      .filter(w=>w.length>0)
+  );
+
   const maskRes={};
+  const maskRanges=masks.map((m,i)=>({...m,i}));
   masks.forEach((m,i)=>{
     const chunk=text.slice(m.start,m.end);
-    const mw=chunk.toLowerCase().replace(/[^a-z\s']/g,' ').split(/\s+/).filter(w=>w.length>1);
+    const mw=chunk.toLowerCase().replace(/[^a-z\s\']/g,' ').split(/\s+/).filter(w=>w.length>1);
     maskRes[i]=(mw.length===0||mw.filter(w=>spokenSet.has(w)).length/mw.length>=0.6)?'correct':'wrong';
   });
-
-  const maskRanges=masks.map((m,i)=>({...m,i}));
   function getMask(p){return maskRanges.find(m=>p>=m.start&&p<m.end)||null;}
 
   let html='',pos=0;
@@ -398,28 +388,103 @@ function renderScored(wordData){
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
     const token=text.slice(pos,end);
     const mInfo=getMask(pos);
-    if(mInfo){
-      const res=maskRes[mInfo.i];
-      const bg=res==='correct'?'background:#003399;color:#fff':'background:#cc0000;color:#fff';
-      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(token)}</span>`;
-    }else{
-      let wd=charInfo[pos];
-      if(!wd){for(let p=pos+1;p<end&&!wd;p++)wd=charInfo[p];}
-      let cls='';
-      if(wd){
-        const err=wd.error;
-        if(err==='Missed'||err==='Omission') cls='missed';
-        else if(wd.score>=80)               cls='good';
-        else if(wd.score>=60)               cls='ok';
-        else                                cls='bad';
-      }
-      html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
+    let wd=charInfo[pos];
+    if(!wd){for(let p=pos+1;p<end&&!wd;p++)wd=charInfo[p];}
+    let cls='';
+    if(wd){
+      if(wd.score===-1)     cls='missed';
+      else if(wd.score>=80) cls='good';
+      else if(wd.score>=60) cls='ok';
+      else                  cls='bad';
     }
+    // mask words use same coloring — no special box
+    html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
     pos=end;
   }
   document.getElementById('cardArea').innerHTML=html;
   document.getElementById('legendRow').style.display='flex';
 }
+
+function handleResult(paResult){
+  const detail=paResult.detailResult||{};
+  console.log('[PA] raw:', JSON.stringify(detail,null,2));
+
+  const acc=Math.round(paResult.accuracyScore||0);
+  const flu=Math.round(paResult.fluencyScore ||0);
+
+  const refTokens=(origText||'').replace(/\n/g,' ').trim()
+    .split(/\s+/).filter(w=>w.length>0);
+
+  const sdkWords=(detail.Words||[])
+    .filter(w=>(w.PronunciationAssessment||{}).ErrorType!=='Insertion')
+    .map(w=>({
+      norm:  (w.Word||'').toLowerCase().replace(/[^a-z\']/g,''),
+      score: Math.round((w.PronunciationAssessment||{}).AccuracyScore||0)
+    }))
+    .filter(w=>w.norm.length>0);
+
+  // Strict window alignment — prevents common words matching far-ahead tokens
+  const WINDOW=3;
+  const refResult=[];
+  let si=0;
+  for(let i=0;i<refTokens.length;i++){
+    const rn=refTokens[i].toLowerCase().replace(/[^a-z\']/g,'');
+    if(!rn){refResult.push(null);continue;}
+    let found=-1;
+    for(let w=si;w<Math.min(si+WINDOW,sdkWords.length);w++){
+      if(sdkWords[w].norm===rn){found=w;break;}
+    }
+    if(found>=0){refResult.push({score:sdkWords[found].score});si=found+1;}
+    else{refResult.push(null);}
+  }
+
+  const matchedCount=refResult.filter(r=>r!==null).length;
+  const coverage=matchedCount/(refTokens.length||1);
+  const quality=Math.round(acc*0.50+flu*0.50);
+  const overall=Math.round(quality*coverage);
+
+  console.log('[PA] acc='+acc+' flu='+flu+' matched='+matchedCount+'/'+refTokens.length+' overall='+overall);
+
+  const grade      =overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
+  const gradeColor ={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  const gradeTxt   ={A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+
+  document.getElementById('gradeBox').textContent=grade;
+  document.getElementById('gradeBox').style.color =gradeColor;
+  document.getElementById('gradeSub').textContent =gradeTxt;
+
+  if(lastScore!==null){
+    const diff=overall-lastScore;
+    const el=document.getElementById('scoreDiff');
+    el.textContent=diff>0?'↑ +'+diff:diff<0?'↓ '+diff:'= 持平';
+    el.style.color=diff>0?'#006600':diff<0?'#cc0000':'#808080';
+  }
+  lastScore=overall;
+
+  setBar('Acc',acc);
+  setBar('Flu',flu);
+  setBar('Com',Math.round(coverage*100));
+
+  const wordData=refTokens.map((tok,i)=>({
+    word:  tok,
+    score: refResult[i]!==null?refResult[i].score:-1
+  }));
+
+  renderScored(wordData);
+
+  drillN++;
+  document.getElementById('drillCnt').textContent=drillN;
+  const prev=bestScores[cur.id];
+  if(prev==null||overall>prev){
+    bestScores[cur.id]=overall;
+    document.getElementById('bestDisp').textContent=overall+'分';
+    document.getElementById('encouragement').textContent=prev!=null?'🌟 新高分！':'';
+  }else{
+    document.getElementById('encouragement').textContent=overall>=75?'💪 继续！':'加油！';
+  }
+  document.getElementById('sMic').textContent='就绪';
+}
+
 
 function resetView(){
   renderPlain();
@@ -478,10 +543,11 @@ document.addEventListener('click',e=>{
 // ── waveform ──
 const WAVE_BARS=9;
 function startWave(stream){
+  stopWave();
   waveStream=stream;
-  const actx=new(window.AudioContext||window.webkitAudioContext)();
-  const src=actx.createMediaStreamSource(stream);
-  waveAnalyser=actx.createAnalyser();
+  waveActx=new(window.AudioContext||window.webkitAudioContext)();
+  const src=waveActx.createMediaStreamSource(stream);
+  waveAnalyser=waveActx.createAnalyser();
   waveAnalyser.fftSize=256;
   src.connect(waveAnalyser);
   const data=new Uint8Array(waveAnalyser.frequencyBinCount);
@@ -501,6 +567,9 @@ function startWave(stream){
 }
 function stopWave(){
   if(waveAnim){cancelAnimationFrame(waveAnim);waveAnim=null;}
+  if(waveActx){try{waveActx.close();}catch(e){}waveActx=null;}
+  if(waveStream){waveStream.getTracks().forEach(t=>t.stop());waveStream=null;}
+  waveAnalyser=null;
   const bars=Array.from({length:WAVE_BARS},(_,i)=>document.getElementById('wb'+i));
   bars.forEach(b=>{b.style.height='3px';b.classList.remove('active');});
 }
@@ -511,20 +580,15 @@ function toggleRec(){if(isRec)stopRec();else startRec();}
 async function startRec(){
   if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
   if(typeof SpeechSDK==='undefined'){alert('Speech SDK 未加载，请检查网络');return;}
-
-  // start waveform
+  if(isRec)return;
+  resetScore();renderPlain();
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     startWave(stream);
   }catch(e){console.warn('waveform error',e);}
-
   const refText=origText.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
   const speechConfig=SpeechSDK.SpeechConfig.fromSubscription(azKey,azRegion);
   speechConfig.speechRecognitionLanguage='en-GB';
-
-  // FIX: use fromJSON to ensure HundredMark grading system is correctly applied.
-  // Direct property assignment (.gradingSystem = ...) is silently ignored by the SDK
-  // and falls back to FivePoint (5-point scale), causing single-digit scores.
   const paCfg=SpeechSDK.PronunciationAssessmentConfig.fromJSON(JSON.stringify({
     referenceText: refText,
     gradingSystem: 'HundredMark',
@@ -532,165 +596,75 @@ async function startRec(){
     enableMiscue: true,
     enableProsodyAssessment: true
   }));
-
   const audioConfig=SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
   paCfg.applyTo(recognizer);
-
-  recognizer.recognizeOnceAsync(
-    result=>{
-      isRec=false;
-      stopWave();
+  const segments=[];
+  recognizer.recognized=(s,e)=>{
+    if(e.result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
+      segments.push(e.result);
+      console.log('[PA] segment:',e.result.text);
+    }
+  };
+  recognizer._segments=segments;
+  recognizer.startContinuousRecognitionAsync(
+    ()=>{
+      isRec=true;
       const m=document.getElementById('micBtn');
-      m.classList.remove('on');m.innerHTML='🎙';
-      document.getElementById('micLbl').textContent='点击录音';
-
-      if(result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
-        const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(result);
-        handleResult(paResult);
-      }else if(result.reason===SpeechSDK.ResultReason.NoMatch){
-        document.getElementById('sMic').textContent='未识别到语音，请重试';
-      }else{
-        document.getElementById('sMic').textContent='识别失败';
-        console.error(result.errorDetails);
-      }
-      recognizer.close();recognizer=null;
+      m.classList.add('on');m.innerHTML='⏹';
+      document.getElementById('micLbl').textContent='按此停止';
+      document.getElementById('sMic').textContent='● 录音中';
     },
     err=>{
-      isRec=false;
+      console.error('startContinuous error:',err);
+      document.getElementById('sMic').textContent='启动失败: '+String(err).slice(0,60);
       stopWave();
-      const m=document.getElementById('micBtn');
-      m.classList.remove('on');m.innerHTML='🎙';
-      document.getElementById('micLbl').textContent='点击录音';
-      document.getElementById('sMic').textContent='错误: '+String(err).slice(0,50);
-      console.error(err);
       if(recognizer){recognizer.close();recognizer=null;}
     }
   );
-
-  isRec=true;
-  const m=document.getElementById('micBtn');
-  m.classList.add('on');m.innerHTML='⏹';
-  document.getElementById('micLbl').textContent='说完自动结束';
-  document.getElementById('sMic').textContent='● 录音中';
-  resetScore();renderPlain();
 }
 
 function stopRec(){
-  // recognizeOnce auto-stops; just update UI hint
-  if(!isRec)return;
-  document.getElementById('micLbl').textContent='处理中...';
+  if(!isRec||!recognizer)return;
+  isRec=false;
+  const m=document.getElementById('micBtn');
+  m.classList.remove('on');m.innerHTML='🎙';
+  document.getElementById('micLbl').textContent='点击录音';
   document.getElementById('sMic').textContent='分析中...';
+  const rec=recognizer;
+  recognizer=null;
+  rec.stopContinuousRecognitionAsync(
+    ()=>{
+      stopWave();
+      const segs=rec._segments||[];
+      console.log('[PA] total segments:',segs.length);
+      if(!segs.length){
+        document.getElementById('sMic').textContent='未识别到语音，请重试';
+        rec.close();return;
+      }
+      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(segs[segs.length-1]);
+      handleResult(paResult);
+      rec.close();
+    },
+    err=>{
+      console.error('stopContinuous error:',err);
+      document.getElementById('sMic').textContent='停止出错: '+String(err).slice(0,60);
+      stopWave();
+      try{rec.close();}catch(e){}
+    }
+  );
 }
 
-function handleResult(paResult){
-  const detail=paResult.detailResult||{};
-  console.log('[PA] raw detailResult:', JSON.stringify(detail,null,2));
-
-  const acc=Math.round(paResult.accuracyScore    ||0);
-  const flu=Math.round(paResult.fluencyScore     ||0);
-  const com=Math.round(paResult.completenessScore||0);
-
-  let pro=Math.round(paResult.prosodyScore||detail.PronScore||detail.pronScore||0);
-  if(pro===0&&flu>0){
-    const wl=detail.Words||[];
-    const errs=wl.filter(w=>{
-      const et=(w.PronunciationAssessment||{}).ErrorType||'None';
-      return et==='Omission'||et==='Insertion';
-    }).length;
-    pro=Math.max(0,Math.round(flu*(1-errs/(wl.length||1))));
+function backToSetup(){
+  if(isRec&&recognizer){
+    isRec=false;
+    const rec=recognizer;recognizer=null;
+    try{rec.stopContinuousRecognitionAsync(()=>rec.close(),()=>{try{rec.close();}catch(e){}});}
+    catch(e){try{rec.close();}catch(_){}}
+    stopWave();
   }
-
-  // ── word-level data from SDK ──
-  const allWords=(detail.Words||[]).map(w=>({
-    word:  w.Word||'',
-    score: Math.round((w.PronunciationAssessment||{}).AccuracyScore||0),
-    error: (w.PronunciationAssessment||{}).ErrorType||'None'
-  }));
-
-  // ── self-computed coverage via diff against reference text ──
-  // Azure only reports words it heard — it never tells us about words we didn't say.
-  // So we align the recognized words (minus Insertions) against the reference token list
-  // and mark any reference token with no match as 'missed'.
-  const refTokens=(origText||'').replace(/\n/g,' ').trim()
-    .split(/\s+/).filter(w=>w.length>0);
-
-  // normalized recognized words (excluding insertions)
-  const recWords=allWords
-    .filter(w=>w.error!=='Insertion')
-    .map(w=>({...w, norm:w.word.toLowerCase().replace(/[^a-z']/g,'')}))
-    .filter(w=>w.norm.length>0);
-
-  // greedy sequential alignment: for each ref token find the next matching rec word
-  const refNorm=refTokens.map(t=>t.toLowerCase().replace(/[^a-z']/g,''));
-  // result parallel to refTokens: null = not matched (missed), or the matched recWord
-  const refMatch=new Array(refTokens.length).fill(null);
-  let ri=0;
-  for(let i=0;i<refNorm.length&&ri<recWords.length;i++){
-    if(refNorm[i]===recWords[ri].norm){
-      refMatch[i]=recWords[ri];
-      ri++;
-    }
-  }
-
-  // coverage = matched ref tokens / total ref tokens
-  const matchedCount=refMatch.filter(m=>m!==null).length;
-  const refWordCount=refTokens.length||1;
-  const coverage=matchedCount/refWordCount;
-
-  // build enriched wordData for renderScored:
-  // — matched ref tokens get the rec word's score/error
-  // — unmatched ref tokens get error='Missed' (our own label, not Azure's)
-  // — insertion words are appended at the end (won't appear in ref text rendering)
-  const wordData=refMatch.map((m,i)=>{
-    if(m!==null) return {word:refTokens[i], score:m.score, error:m.error};
-    return {word:refTokens[i], score:0, error:'Missed'};
-  });
-  // append insertions so spokenSet is correct for mask evaluation
-  allWords.filter(w=>w.error==='Insertion').forEach(w=>wordData.push(w));
-
-  // ── quality score over what was said ──
-  const quality=Math.round(acc*0.50+flu*0.35+pro*0.15);
-  const overall=Math.round(quality*coverage);
-
-  console.log('[PA] acc='+acc+' flu='+flu+' com='+com+' pro='+pro+
-    ' | matched='+matchedCount+'/'+refWordCount+
-    ' coverage='+coverage.toFixed(2)+' quality='+quality+' overall='+overall);
-
-  const grade      =overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
-  const gradeColor ={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
-  const gradeTxt   ={A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
-
-  document.getElementById('gradeBox').textContent=grade;
-  document.getElementById('gradeBox').style.color =gradeColor;
-  document.getElementById('gradeSub').textContent =gradeTxt;
-
-  if(lastScore!==null){
-    const diff=overall-lastScore;
-    const el=document.getElementById('scoreDiff');
-    el.textContent=diff>0?'↑ +'+diff:diff<0?'↓ '+diff:'= 持平';
-    el.style.color=diff>0?'#006600':diff<0?'#cc0000':'#808080';
-  }
-  lastScore=overall;
-
-  setBar('Acc',acc);
-  setBar('Flu',flu);
-  setBar('Com',Math.round(coverage*100));
-  setBar('Pro',pro);
-
-  renderScored(wordData);
-
-  drillN++;
-  document.getElementById('drillCnt').textContent=drillN;
-  const prev=bestScores[cur.id];
-  if(prev==null||overall>prev){
-    bestScores[cur.id]=overall;
-    document.getElementById('bestDisp').textContent=overall+'分';
-    document.getElementById('encouragement').textContent=prev!=null?'🌟 新高分！':'';
-  }else{
-    document.getElementById('encouragement').textContent=overall>=75?'💪 继续！':'加油！';
-  }
-  document.getElementById('sMic').textContent='就绪';
+  document.getElementById('app').style.display='none';
+  document.getElementById('setup').style.display='flex';
 }
 
 function setBar(k,v){
@@ -706,7 +680,7 @@ function resetScore(){
   document.getElementById('gradeSub').textContent='';
   document.getElementById('scoreDiff').textContent='';
   document.getElementById('encouragement').textContent='';
-  ['Acc','Flu','Com','Pro'].forEach(k=>{
+  ['Acc','Flu','Com'].forEach(k=>{
     document.getElementById('b'+k).style.width='0%';
     document.getElementById('v'+k).textContent='--';
     document.getElementById('v'+k).style.color='var(--mid)';

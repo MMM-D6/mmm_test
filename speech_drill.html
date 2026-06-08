@@ -254,7 +254,7 @@ let isRec=false, recognizer=null;
 let drillN=0, bestScores={}, lastScore=null;
 let azKey='', azRegion='';
 // waveform
-let waveCtx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
+let waveActx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
 
 (function(){
   azKey    = localStorage.getItem('sd_key')||'';
@@ -316,7 +316,13 @@ function startDrill(){
   loadCard();
 }
 function backToSetup(){
-  if(isRec)stopRec();
+  if(isRec&&recognizer){
+    // immediate teardown — don't wait for stopContinuous callback
+    isRec=false;
+    try{recognizer.stopContinuousRecognitionAsync(()=>{recognizer.close();recognizer=null;},()=>{recognizer.close();recognizer=null;});}
+    catch(e){try{recognizer.close();}catch(_){}recognizer=null;}
+    stopWave();
+  }
   document.getElementById('app').style.display='none';
   document.getElementById('setup').style.display='flex';
 }
@@ -503,10 +509,11 @@ document.addEventListener('click',e=>{
 // ── waveform ──
 const WAVE_BARS=9;
 function startWave(stream){
+  stopWave(); // clean up any previous session first
   waveStream=stream;
-  const actx=new(window.AudioContext||window.webkitAudioContext)();
-  const src=actx.createMediaStreamSource(stream);
-  waveAnalyser=actx.createAnalyser();
+  waveActx=new(window.AudioContext||window.webkitAudioContext)();
+  const src=waveActx.createMediaStreamSource(stream);
+  waveAnalyser=waveActx.createAnalyser();
   waveAnalyser.fftSize=256;
   src.connect(waveAnalyser);
   const data=new Uint8Array(waveAnalyser.frequencyBinCount);
@@ -526,6 +533,9 @@ function startWave(stream){
 }
 function stopWave(){
   if(waveAnim){cancelAnimationFrame(waveAnim);waveAnim=null;}
+  if(waveActx){try{waveActx.close();}catch(e){}waveActx=null;}
+  if(waveStream){waveStream.getTracks().forEach(t=>t.stop());waveStream=null;}
+  waveAnalyser=null;
   const bars=Array.from({length:WAVE_BARS},(_,i)=>document.getElementById('wb'+i));
   bars.forEach(b=>{b.style.height='3px';b.classList.remove('active');});
 }
@@ -536,10 +546,14 @@ function toggleRec(){if(isRec)stopRec();else startRec();}
 async function startRec(){
   if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
   if(typeof SpeechSDK==='undefined'){alert('Speech SDK 未加载，请检查网络');return;}
+  if(isRec)return;
 
-  // start waveform
+  resetScore();renderPlain();
+  document.getElementById('phonemeRow').style.display='none';
+
+  // get mic stream for waveform (separate from SDK's own audio pipeline)
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     startWave(stream);
   }catch(e){console.warn('waveform error',e);}
 
@@ -547,9 +561,6 @@ async function startRec(){
   const speechConfig=SpeechSDK.SpeechConfig.fromSubscription(azKey,azRegion);
   speechConfig.speechRecognitionLanguage='en-GB';
 
-  // FIX: use fromJSON to ensure HundredMark grading system is correctly applied.
-  // Direct property assignment (.gradingSystem = ...) is silently ignored by the SDK
-  // and falls back to FivePoint (5-point scale), causing single-digit scores.
   const paCfg=SpeechSDK.PronunciationAssessmentConfig.fromJSON(JSON.stringify({
     referenceText: refText,
     gradingSystem: 'HundredMark',
@@ -562,51 +573,72 @@ async function startRec(){
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
   paCfg.applyTo(recognizer);
 
-  recognizer.recognizeOnceAsync(
-    result=>{
-      isRec=false;
-      stopWave();
-      const m=document.getElementById('micBtn');
-      m.classList.remove('on');m.innerHTML='🎙';
-      document.getElementById('micLbl').textContent='点击录音';
+  // collect all recognized segments; continuous mode won't auto-stop
+  let segments=[];
+  recognizer.recognized=(s,e)=>{
+    if(e.result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
+      segments.push(e.result);
+      console.log('[PA] segment recognized:', e.result.text);
+    }
+  };
 
-      if(result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
-        const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(result);
-        handleResult(paResult);
-      }else if(result.reason===SpeechSDK.ResultReason.NoMatch){
-        document.getElementById('sMic').textContent='未识别到语音，请重试';
-      }else{
-        document.getElementById('sMic').textContent='识别失败';
-        console.error(result.errorDetails);
-      }
-      recognizer.close();recognizer=null;
+  recognizer.startContinuousRecognitionAsync(
+    ()=>{
+      // successfully started
+      isRec=true;
+      const m=document.getElementById('micBtn');
+      m.classList.add('on');m.innerHTML='⏹';
+      document.getElementById('micLbl').textContent='按此停止';
+      document.getElementById('sMic').textContent='● 录音中';
     },
     err=>{
-      isRec=false;
+      console.error('startContinuous error:', err);
+      document.getElementById('sMic').textContent='启动失败: '+String(err).slice(0,60);
       stopWave();
-      const m=document.getElementById('micBtn');
-      m.classList.remove('on');m.innerHTML='🎙';
-      document.getElementById('micLbl').textContent='点击录音';
-      document.getElementById('sMic').textContent='错误: '+String(err).slice(0,50);
-      console.error(err);
       if(recognizer){recognizer.close();recognizer=null;}
     }
   );
 
-  isRec=true;
-  const m=document.getElementById('micBtn');
-  m.classList.add('on');m.innerHTML='⏹';
-  document.getElementById('micLbl').textContent='说完自动结束';
-  document.getElementById('sMic').textContent='● 录音中';
-  resetScore();renderPlain();
-  document.getElementById('phonemeRow').style.display='none';
+  // store segments ref on recognizer so stopRec can access it
+  recognizer._segments=segments;
 }
 
 function stopRec(){
-  // recognizeOnce auto-stops; just update UI hint
-  if(!isRec)return;
-  document.getElementById('micLbl').textContent='处理中...';
+  if(!isRec||!recognizer)return;
+  isRec=false;
+
+  const m=document.getElementById('micBtn');
+  m.classList.remove('on');m.innerHTML='🎙';
+  document.getElementById('micLbl').textContent='点击录音';
   document.getElementById('sMic').textContent='分析中...';
+
+  recognizer.stopContinuousRecognitionAsync(
+    ()=>{
+      stopWave();
+      const segments=recognizer._segments||[];
+      console.log('[PA] total segments:', segments.length);
+
+      if(!segments.length){
+        document.getElementById('sMic').textContent='未识别到语音，请重试';
+        recognizer.close();recognizer=null;
+        return;
+      }
+
+      // use the last segment for pronunciation assessment
+      // (it contains the most complete result for the full utterance)
+      const best=segments[segments.length-1];
+      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(best);
+      handleResult(paResult);
+
+      recognizer.close();recognizer=null;
+    },
+    err=>{
+      console.error('stopContinuous error:', err);
+      document.getElementById('sMic').textContent='停止出错: '+String(err).slice(0,60);
+      stopWave();
+      if(recognizer){recognizer.close();recognizer=null;}
+    }
+  );
 }
 
 function handleResult(paResult){

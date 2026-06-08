@@ -57,15 +57,7 @@ body{display:flex;flex-direction:column;}
   background:#fafafa;white-space:pre-wrap;word-break:break-word;display:none;
 }
 
-/* phoneme row */
-#phonemeRow{
-  padding:6px 18px;font-size:12px;border-top:2px solid var(--dk);
-  background:var(--light);display:none;flex-wrap:wrap;gap:8px;align-items:flex-start;
-}
-.ph-word{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;border:1px solid var(--mid);background:#fff;}
-.ph-word .pw-word{font-size:13px;font-family:Arial,sans-serif;font-weight:bold;color:#cc0000;}
-.ph-word .pw-ipa{font-size:11px;color:var(--mid);font-family:var(--fm);}
-.ph-word .pw-ph{font-size:10px;color:#cc0000;font-family:var(--fm);}
+
 
 /* word colors */
 .w{border-radius:2px;padding:0 2px;}
@@ -186,9 +178,6 @@ body{display:flex;flex-direction:column;}
       <div id="cardArea" onmouseup="onSel()" ontouchend="onSel()">请先导入卡片</div>
       <div id="noteArea"></div>
     </div>
-
-    <!-- phoneme feedback -->
-    <div id="phonemeRow"></div>
 
     <div id="pop">
       <button class="btn" onclick="applyMask()">▓ 遮蔽</button>
@@ -332,8 +321,6 @@ function loadCard(){
   document.getElementById('sMask').textContent='遮蔽: '+(cur.masks||[]).length;
   document.getElementById('encouragement').textContent='';
   document.getElementById('legendRow').style.display='none';
-  document.getElementById('phonemeRow').style.display='none';
-  document.getElementById('phonemeRow').innerHTML='';
   const note=cur.note&&cur.note.trim();
   const na=document.getElementById('noteArea');
   if(note){na.textContent='📝 '+note;na.style.display='block';}
@@ -367,32 +354,42 @@ function renderPlain(){
 
 function renderScored(wordData){
   if(!cur)return;
-  const text=origText,masks=cur.masks||[];
+  const text=origText, masks=cur.masks||[];
 
-  // spoken word set (excluding insertions)
+  // words actually spoken (not insertions) — for mask evaluation
   const spokenSet=new Set(
     wordData.filter(w=>w.error!=='Insertion')
       .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
       .filter(w=>w.length>0)
   );
 
-  // mask result
+  // words explicitly flagged as Omission — for fallback missed coloring
+  const omittedSet=new Set(
+    wordData.filter(w=>w.error==='Omission')
+      .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
+      .filter(w=>w.length>0)
+  );
+
+  // char→word map: skip Insertions (they have no position in reference text)
+  const charInfo={};
+  let sf=0;
+  for(const wd of wordData){
+    if(wd.error==='Insertion')continue;
+    const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
+    if(!clean)continue;
+    const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
+    if(idx<0)continue;
+    for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;
+    sf=idx+clean.length;
+  }
+
+  // mask result: >=60% of mask words must be in spokenSet
   const maskRes={};
   masks.forEach((m,i)=>{
     const chunk=text.slice(m.start,m.end);
     const mw=chunk.toLowerCase().replace(/[^a-z\s']/g,' ').split(/\s+/).filter(w=>w.length>1);
     maskRes[i]=(mw.length===0||mw.filter(w=>spokenSet.has(w)).length/mw.length>=0.6)?'correct':'wrong';
   });
-
-  // char→word map
-  const charInfo={};
-  let sf=0;
-  for(const wd of wordData){
-    const clean=wd.word.replace(/[^a-zA-Z0-9'\-]/g,'');
-    if(!clean)continue;
-    const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
-    if(idx>=0){for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;sf=idx+clean.length;}
-  }
 
   const maskRanges=masks.map((m,i)=>({...m,i}));
   function getMask(p){return maskRanges.find(m=>p>=m.start&&p<m.end)||null;}
@@ -404,51 +401,37 @@ function renderScored(wordData){
     if(ch===' '){html+=' ';pos++;continue;}
     let end=pos;
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
-    const word=text.slice(pos,end);
+    const token=text.slice(pos,end);
     const mInfo=getMask(pos);
     if(mInfo){
       const res=maskRes[mInfo.i];
       const bg=res==='correct'?'background:#003399;color:#fff':'background:#cc0000;color:#fff';
-      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(word)}</span>`;
+      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(token)}</span>`;
     }else{
-      const wd=charInfo[pos];
+      let wd=charInfo[pos];
+      if(!wd){for(let p=pos+1;p<end&&!wd;p++)wd=charInfo[p];}
       let cls='';
       if(wd){
-        if(wd.error==='Omission')cls='missed';
-        else if(wd.score>=80)cls='good';
-        else if(wd.score>=60)cls='ok';
-        else cls='bad';
+        if(wd.error==='Omission')      cls='missed';
+        else if(wd.score>=80)          cls='good';
+        else if(wd.score>=60)          cls='ok';
+        else                           cls='bad';
+      }else{
+        // charInfo miss: check if this token is in the omitted set
+        const tk=token.toLowerCase().replace(/[^a-z']/g,'');
+        if(tk.length>0&&omittedSet.has(tk))cls='missed';
       }
-      html+=cls?`<span class="w ${cls}" title="${wd&&wd.ipa?wd.ipa:''}">${esc(word)}</span>`:esc(word);
+      html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
     }
     pos=end;
   }
   document.getElementById('cardArea').innerHTML=html;
   document.getElementById('legendRow').style.display='flex';
-
-  // phoneme row: only words with real pronunciation errors (score < 60, not omission/insertion)
-  const badWords=wordData.filter(w=>
-    w.error!=='Omission'&&w.error!=='Insertion'&&
-    w.score<60&&w.word&&w.badPhonemes.length>0
-  );
-  const pr=document.getElementById('phonemeRow');
-  if(badWords.length){
-    pr.innerHTML='<span style="font-size:11px;font-weight:bold;color:var(--blue);flex-shrink:0;align-self:center;">发音问题:</span>'+
-      badWords.map(w=>`<div class="ph-word">
-        <div class="pw-word">${esc(w.word)}</div>
-        <div class="pw-ipa">${esc(w.ipa)}</div>
-        <div class="pw-ph">${w.badPhonemes.map(p=>esc(p)).join(' ')}</div>
-      </div>`).join('');
-    pr.style.display='flex';
-  }else{
-    pr.style.display='none';
-  }
 }
 
 function resetView(){
   renderPlain();
   document.getElementById('legendRow').style.display='none';
-  document.getElementById('phonemeRow').style.display='none';
 }
 function clickMk(i){
   const el=document.getElementById('cardArea').querySelector(`[data-mi="${i}"]`);
@@ -599,7 +582,6 @@ async function startRec(){
   document.getElementById('micLbl').textContent='说完自动结束';
   document.getElementById('sMic').textContent='● 录音中';
   resetScore();renderPlain();
-  document.getElementById('phonemeRow').style.display='none';
 }
 
 function stopRec(){
@@ -620,30 +602,38 @@ function handleResult(paResult){
   let pro=Math.round(paResult.prosodyScore||detail.PronScore||detail.pronScore||0);
   if(pro===0&&flu>0){
     const wl=detail.Words||[];
-    const errs=wl.filter(w=>{const et=(w.PronunciationAssessment||{}).ErrorType||'None';return et==='Omission'||et==='Insertion';}).length;
+    const errs=wl.filter(w=>{
+      const et=(w.PronunciationAssessment||{}).ErrorType||'None';
+      return et==='Omission'||et==='Insertion';
+    }).length;
     pro=Math.max(0,Math.round(flu*(1-errs/(wl.length||1))));
   }
 
-  // ── coverage ratio: how much of the reference text was actually spoken ──
-  // Count ref words, spoken words (non-Insertion), omitted words from SDK result.
+  // ── word-level data (no phoneme fields needed) ──
   const allWords=detail.Words||[];
-  const refWordCount=origText.replace(/\n/g,' ').trim().split(/\s+/).filter(w=>w.length>0).length||1;
-  const omissionCount=allWords.filter(w=>(w.PronunciationAssessment||{}).ErrorType==='Omission').length;
+  const wordData=allWords.map(w=>({
+    word:  w.Word||'',
+    score: Math.round((w.PronunciationAssessment||{}).AccuracyScore||0),
+    error: (w.PronunciationAssessment||{}).ErrorType||'None'
+  }));
+
+  // ── coverage: spoken words / total reference words ──
+  const refTokens=(origText||'').replace(/\n/g,' ').trim().split(/\s+/).filter(w=>w.length>0);
+  const refWordCount=refTokens.length||1;
+  const omissionCount=wordData.filter(w=>w.error==='Omission').length;
   const spokenCount=Math.max(0,refWordCount-omissionCount);
   const coverage=spokenCount/refWordCount; // 0.0 – 1.0
 
-  // ── quality score: pronunciation quality over what WAS said ──
-  // Insertion words hurt fluency (Azure already penalises them in flu score).
-  // Weight: accuracy 50%, fluency 35%, prosody 15% — completeness excluded here
-  // because coverage already captures the missing-word dimension directly.
-  const quality=Math.round(acc*0.50 + flu*0.35 + pro*0.15);
+  // ── quality score over what was actually said ──
+  // Completeness excluded — coverage already captures the missing-word dimension.
+  const quality=Math.round(acc*0.50+flu*0.35+pro*0.15);
 
-  // ── overall: quality gated by coverage ──
-  // Say 50% of words → max possible score is 50, regardless of quality.
+  // ── overall = quality gated by coverage ──
+  // Speak 50% of words → max score is 50, regardless of pronunciation quality.
   const overall=Math.round(quality*coverage);
 
-  console.log('[PA] acc=%d flu=%d com=%d pro=%d | coverage=%.2f quality=%d overall=%d',
-    acc,flu,com,pro,coverage,quality,overall);
+  console.log('[PA] acc='+acc+' flu='+flu+' com='+com+' pro='+pro+
+    ' | coverage='+coverage.toFixed(2)+' quality='+quality+' overall='+overall);
 
   const grade      =overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
   const gradeColor ={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
@@ -661,22 +651,10 @@ function handleResult(paResult){
   }
   lastScore=overall;
 
-  // bars: show raw dimension scores so user can see what to improve
   setBar('Acc',acc);
   setBar('Flu',flu);
-  setBar('Com',Math.round(coverage*100)); // repurpose Com bar to show coverage %
+  setBar('Com',Math.round(coverage*100));
   setBar('Pro',pro);
-
-  // ── word-level data ──
-  const wordData=[];
-  for(const w of allWords){
-    const wpa=w.PronunciationAssessment||{};
-    wordData.push({
-      word:  w.Word||'',
-      score: Math.round(wpa.AccuracyScore||0),
-      error: wpa.ErrorType||'None'
-    });
-  }
 
   renderScored(wordData);
 

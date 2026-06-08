@@ -57,15 +57,6 @@ body{display:flex;flex-direction:column;}
   background:#fafafa;white-space:pre-wrap;word-break:break-word;display:none;
 }
 
-/* phoneme row */
-#phonemeRow{
-  padding:6px 18px;font-size:12px;border-top:2px solid var(--dk);
-  background:var(--light);display:none;flex-wrap:wrap;gap:8px;align-items:flex-start;
-}
-.ph-word{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;border:1px solid var(--mid);background:#fff;}
-.ph-word .pw-word{font-size:13px;font-family:Arial,sans-serif;font-weight:bold;color:#cc0000;}
-.ph-word .pw-ipa{font-size:11px;color:var(--mid);font-family:var(--fm);}
-.ph-word .pw-ph{font-size:10px;color:#cc0000;font-family:var(--fm);}
 
 /* word colors */
 .w{border-radius:2px;padding:0 2px;}
@@ -186,9 +177,6 @@ body{display:flex;flex-direction:column;}
       <div id="cardArea" onmouseup="onSel()" ontouchend="onSel()">请先导入卡片</div>
       <div id="noteArea"></div>
     </div>
-
-    <!-- phoneme feedback -->
-    <div id="phonemeRow"></div>
 
     <div id="pop">
       <button class="btn" onclick="applyMask()">▓ 遮蔽</button>
@@ -315,17 +303,6 @@ function startDrill(){
   document.getElementById('app').style.display='flex';
   loadCard();
 }
-function backToSetup(){
-  if(isRec&&recognizer){
-    // immediate teardown — don't wait for stopContinuous callback
-    isRec=false;
-    try{recognizer.stopContinuousRecognitionAsync(()=>{recognizer.close();recognizer=null;},()=>{recognizer.close();recognizer=null;});}
-    catch(e){try{recognizer.close();}catch(_){}recognizer=null;}
-    stopWave();
-  }
-  document.getElementById('app').style.display='none';
-  document.getElementById('setup').style.display='flex';
-}
 function loadCard(){
   const idx=cards.length>1?parseInt(document.getElementById('cardSel').value)||0:0;
   cur=JSON.parse(JSON.stringify(cards[idx]));
@@ -338,8 +315,6 @@ function loadCard(){
   document.getElementById('sMask').textContent='遮蔽: '+(cur.masks||[]).length;
   document.getElementById('encouragement').textContent='';
   document.getElementById('legendRow').style.display='none';
-  document.getElementById('phonemeRow').style.display='none';
-  document.getElementById('phonemeRow').innerHTML='';
   const note=cur.note&&cur.note.trim();
   const na=document.getElementById('noteArea');
   if(note){na.textContent='📝 '+note;na.style.display='block';}
@@ -373,16 +348,16 @@ function renderPlain(){
 
 function renderScored(wordData){
   if(!cur)return;
-  const text=origText,masks=cur.masks||[];
+  const text=origText, masks=cur.masks||[];
 
-  // spoken word set (excluding insertions)
+  // spoken word set for mask evaluation (exclude insertions)
   const spokenSet=new Set(
     wordData.filter(w=>w.error!=='Insertion')
       .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
       .filter(w=>w.length>0)
   );
 
-  // mask result
+  // mask result: need >=60% of mask words to be spoken
   const maskRes={};
   masks.forEach((m,i)=>{
     const chunk=text.slice(m.start,m.end);
@@ -390,14 +365,19 @@ function renderScored(wordData){
     maskRes[i]=(mw.length===0||mw.filter(w=>spokenSet.has(w)).length/mw.length>=0.6)?'correct':'wrong';
   });
 
-  // char→word map
+  // char→word map: align SDK words back to original text positions
+  // strip punctuation for matching but track original position
   const charInfo={};
   let sf=0;
   for(const wd of wordData){
-    const clean=wd.word.replace(/[^a-zA-Z0-9'\-]/g,'');
+    // strip leading/trailing punctuation from SDK word for matching
+    const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
     if(!clean)continue;
     const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
-    if(idx>=0){for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;sf=idx+clean.length;}
+    if(idx<0)continue;
+    // mark every char in this word's span with the word data
+    for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;
+    sf=idx+clean.length;
   }
 
   const maskRanges=masks.map((m,i)=>({...m,i}));
@@ -408,53 +388,45 @@ function renderScored(wordData){
     const ch=text[pos];
     if(ch==='\n'){html+='<br>';pos++;continue;}
     if(ch===' '){html+=' ';pos++;continue;}
+    // find end of token (space or newline)
     let end=pos;
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
-    const word=text.slice(pos,end);
+    const token=text.slice(pos,end);
     const mInfo=getMask(pos);
     if(mInfo){
       const res=maskRes[mInfo.i];
       const bg=res==='correct'?'background:#003399;color:#fff':'background:#cc0000;color:#fff';
-      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(word)}</span>`;
+      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(token)}</span>`;
     }else{
-      const wd=charInfo[pos];
+      // look up word data: check any char in the token span
+      let wd=charInfo[pos];
+      if(!wd){
+        // fallback: scan all chars in token for a hit
+        for(let p=pos;p<end&&!wd;p++)wd=charInfo[p];
+      }
       let cls='';
       if(wd){
-        if(wd.error==='Omission')cls='missed';
-        else if(wd.score>=80)cls='good';
-        else if(wd.score>=60)cls='ok';
-        else cls='bad';
+        const err=wd.error||'None';
+        if(err==='Omission')cls='missed';
+        else if(err==='Insertion'){cls='';} // insertions don't map to reference text, skip coloring
+        else{
+          // use AccuracyScore: good>=80, ok>=60, bad<60
+          if(wd.score>=80)cls='good';
+          else if(wd.score>=60)cls='ok';
+          else cls='bad';
+        }
       }
-      html+=cls?`<span class="w ${cls}" title="${wd&&wd.ipa?wd.ipa:''}">${esc(word)}</span>`:esc(word);
+      html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
     }
     pos=end;
   }
   document.getElementById('cardArea').innerHTML=html;
   document.getElementById('legendRow').style.display='flex';
-
-  // phoneme row: only words with real pronunciation errors (score < 60, not omission/insertion)
-  const badWords=wordData.filter(w=>
-    w.error!=='Omission'&&w.error!=='Insertion'&&
-    w.score<60&&w.word&&w.badPhonemes.length>0
-  );
-  const pr=document.getElementById('phonemeRow');
-  if(badWords.length){
-    pr.innerHTML='<span style="font-size:11px;font-weight:bold;color:var(--blue);flex-shrink:0;align-self:center;">发音问题:</span>'+
-      badWords.map(w=>`<div class="ph-word">
-        <div class="pw-word">${esc(w.word)}</div>
-        <div class="pw-ipa">${esc(w.ipa)}</div>
-        <div class="pw-ph">${w.badPhonemes.map(p=>esc(p)).join(' ')}</div>
-      </div>`).join('');
-    pr.style.display='flex';
-  }else{
-    pr.style.display='none';
-  }
 }
 
 function resetView(){
   renderPlain();
   document.getElementById('legendRow').style.display='none';
-  document.getElementById('phonemeRow').style.display='none';
 }
 function clickMk(i){
   const el=document.getElementById('cardArea').querySelector(`[data-mi="${i}"]`);
@@ -509,7 +481,7 @@ document.addEventListener('click',e=>{
 // ── waveform ──
 const WAVE_BARS=9;
 function startWave(stream){
-  stopWave(); // clean up any previous session first
+  stopWave(); // always clean up previous session first
   waveStream=stream;
   waveActx=new(window.AudioContext||window.webkitAudioContext)();
   const src=waveActx.createMediaStreamSource(stream);
@@ -549,9 +521,8 @@ async function startRec(){
   if(isRec)return;
 
   resetScore();renderPlain();
-  document.getElementById('phonemeRow').style.display='none';
 
-  // get mic stream for waveform (separate from SDK's own audio pipeline)
+  // get mic stream for waveform display (separate from SDK's internal audio pipeline)
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     startWave(stream);
@@ -573,18 +544,18 @@ async function startRec(){
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
   paCfg.applyTo(recognizer);
 
-  // collect all recognized segments; continuous mode won't auto-stop
-  let segments=[];
+  // collect all recognized segments during continuous recording
+  const segments=[];
   recognizer.recognized=(s,e)=>{
     if(e.result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
       segments.push(e.result);
-      console.log('[PA] segment recognized:', e.result.text);
+      console.log('[PA] segment:', e.result.text);
     }
   };
+  recognizer._segments=segments;
 
   recognizer.startContinuousRecognitionAsync(
     ()=>{
-      // successfully started
       isRec=true;
       const m=document.getElementById('micBtn');
       m.classList.add('on');m.innerHTML='⏹';
@@ -592,15 +563,12 @@ async function startRec(){
       document.getElementById('sMic').textContent='● 录音中';
     },
     err=>{
-      console.error('startContinuous error:', err);
+      console.error('startContinuous error:',err);
       document.getElementById('sMic').textContent='启动失败: '+String(err).slice(0,60);
       stopWave();
       if(recognizer){recognizer.close();recognizer=null;}
     }
   );
-
-  // store segments ref on recognizer so stopRec can access it
-  recognizer._segments=segments;
 }
 
 function stopRec(){
@@ -612,33 +580,48 @@ function stopRec(){
   document.getElementById('micLbl').textContent='点击录音';
   document.getElementById('sMic').textContent='分析中...';
 
-  recognizer.stopContinuousRecognitionAsync(
+  const rec=recognizer;
+  recognizer=null;
+
+  rec.stopContinuousRecognitionAsync(
     ()=>{
       stopWave();
-      const segments=recognizer._segments||[];
-      console.log('[PA] total segments:', segments.length);
-
+      const segments=rec._segments||[];
+      console.log('[PA] total segments:',segments.length);
       if(!segments.length){
         document.getElementById('sMic').textContent='未识别到语音，请重试';
-        recognizer.close();recognizer=null;
+        rec.close();
         return;
       }
-
-      // use the last segment for pronunciation assessment
-      // (it contains the most complete result for the full utterance)
-      const best=segments[segments.length-1];
-      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(best);
+      // use the last (most complete) segment for pronunciation assessment
+      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(segments[segments.length-1]);
       handleResult(paResult);
-
-      recognizer.close();recognizer=null;
+      rec.close();
     },
     err=>{
-      console.error('stopContinuous error:', err);
+      console.error('stopContinuous error:',err);
       document.getElementById('sMic').textContent='停止出错: '+String(err).slice(0,60);
       stopWave();
-      if(recognizer){recognizer.close();recognizer=null;}
+      try{rec.close();}catch(e){}
     }
   );
+}
+
+function backToSetup(){
+  if(isRec&&recognizer){
+    isRec=false;
+    const rec=recognizer;
+    recognizer=null;
+    try{
+      rec.stopContinuousRecognitionAsync(
+        ()=>{rec.close();},
+        ()=>{try{rec.close();}catch(e){}}
+      );
+    }catch(e){try{rec.close();}catch(_){}}
+    stopWave();
+  }
+  document.getElementById('app').style.display='none';
+  document.getElementById('setup').style.display='flex';
 }
 
 function handleResult(paResult){
@@ -700,18 +683,11 @@ function handleResult(paResult){
   const wordData=[];
   if(detail&&detail.Words){
     for(const w of detail.Words){
-      const wpa      = w.PronunciationAssessment || {};
-      const phonemes = w.Phonemes || [];
-      const badPhonemes = phonemes
-        .filter(p=>(p.PronunciationAssessment?.AccuracyScore||100)<50)
-        .map(p=>'/'+p.Phoneme+'/');
-      const ipa='/'+phonemes.map(p=>p.Phoneme||'').join('')+'/';
+      const wpa=w.PronunciationAssessment||{};
       wordData.push({
         word: w.Word||'',
         score: Math.round(wpa.AccuracyScore||0),
-        error: wpa.ErrorType||'None',
-        ipa:  ipa==='///'?'':ipa,
-        badPhonemes
+        error: wpa.ErrorType||'None'
       });
     }
   }

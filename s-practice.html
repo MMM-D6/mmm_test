@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"/>
+<title>Speech Drill</title>
+<style>
+@font-face{font-family:'Unifont';src:url('unifont.ttf') format('truetype');}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --f:"Unifont","MS Sans Serif","SimSun","宋体",Tahoma,Arial,sans-serif;
+  --fm:"Unifont","Courier New",monospace;
+  --gray:#c0c0c0;--light:#dfdfdf;--dk:#404040;--mid:#808080;--blk:#000;
+  --blue:#000080;--blue2:#1084d0;
+}
+html,body{height:100%;background:var(--gray);font-family:var(--f);font-size:13px;color:var(--blk);overflow:hidden;}
+.win{background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
+.tb{background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;font-size:12px;font-weight:bold;padding:3px 8px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;}
+.btn{font-family:var(--f);font-size:12px;cursor:pointer;padding:3px 10px;background:var(--gray);color:var(--blk);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;white-space:nowrap;}
+.btn:hover:not(:disabled){background:var(--light);}
+.btn:active:not(:disabled){border-color:var(--dk) #fff #fff var(--dk);transform:translate(1px,1px);}
+.btn:disabled{color:var(--mid);cursor:default;}
+.btn.pri{background:var(--blue);color:#fff;}
+.btn.pri:hover:not(:disabled){background:#0000a8;}
+input[type=text],input[type=password]{font-family:var(--f);font-size:12px;background:#fff;color:var(--blk);border:2px solid;border-color:var(--dk) #fff #fff var(--dk);padding:3px 5px;outline:none;}
+.sbar{background:var(--gray);border-top:2px solid var(--dk);padding:2px 6px;font-size:11px;display:flex;gap:8px;flex-shrink:0;}
+.sp{border:1px solid var(--dk);padding:1px 6px;}
+
+body{display:flex;flex-direction:column;}
+#app{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+
+/* setup */
+#setup{position:fixed;inset:0;background:var(--gray);z-index:100;display:flex;align-items:center;justify-content:center;}
+#setupBox{width:460px;}
+#dropzone{border:3px dashed var(--mid);background:#fff;padding:24px;text-align:center;cursor:pointer;color:var(--mid);transition:all .15s;margin-bottom:8px;}
+#dropzone.over{border-color:var(--blue);background:#e8e8ff;color:var(--blue);}
+#dropzone.ok{border-color:#006600;background:#e8ffe8;color:#006600;}
+#cfgPanel{display:none;padding:8px;background:var(--light);border:2px solid;border-color:var(--dk) #fff #fff var(--dk);margin-top:4px;}
+.cfg-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.cfg-row label{font-size:12px;width:75px;flex-shrink:0;}
+.cfg-row input{flex:1;}
+
+/* main */
+#main{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+#toolbar{padding:5px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:2px solid var(--dk);background:var(--gray);}
+
+/* text + note area */
+#textWrap{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+#cardArea{
+  padding:14px 18px 8px;
+  line-height:2.4;font-size:17px;font-family:Arial,sans-serif;
+  white-space:pre-wrap;word-break:break-word;
+  cursor:text;user-select:text;background:#fff;
+}
+#noteArea{
+  padding:6px 18px 10px;
+  font-size:13px;font-family:var(--f);
+  color:var(--mid);border-top:1px dashed var(--mid);
+  background:#fafafa;white-space:pre-wrap;word-break:break-word;
+  display:none;
+}
+
+/* phoneme feedback row */
+#phonemeRow{
+  padding:6px 18px;font-size:12px;font-family:var(--fm);
+  border-top:2px solid var(--dk);background:var(--light);
+  display:none;flex-wrap:wrap;gap:6px;align-items:flex-start;
+}
+.ph-word{display:flex;flex-direction:column;align-items:center;gap:1px;cursor:default;}
+.ph-word .pw-text{font-size:13px;font-family:Arial,sans-serif;font-weight:bold;}
+.ph-word .pw-ipa{font-size:11px;color:var(--mid);}
+.ph-word .pw-issues{font-size:10px;color:#cc0000;max-width:120px;text-align:center;line-height:1.3;}
+.ph-word .pw-stress{font-size:10px;color:#884400;}
+
+/* word coloring in card */
+.w{border-radius:2px;padding:0 2px;position:relative;}
+.w.good  {background:#d4edda;color:#155724;}
+.w.ok    {background:#fff3cd;color:#5c3d00;}
+.w.bad   {background:#f8d7da;color:#721c24;}
+.w.missed{background:#e2e3e5;color:#383d41;text-decoration:line-through;}
+/* stress mark above word */
+.w[data-stress="wrong"]::before{
+  content:'ˈ';position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+  font-size:14px;color:#884400;font-weight:bold;
+}
+.mk     {background:#909090;color:transparent;cursor:pointer;border-radius:2px;padding:0 2px;}
+.mk.vis {background:#c8c8ff;color:#000;}
+
+/* controls */
+#controls{flex-shrink:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--gray);border-top:2px solid var(--dk);}
+#scoreLeft{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;}
+.srow{display:flex;align-items:center;gap:5px;font-size:11px;}
+.sl{width:50px;flex-shrink:0;color:var(--mid);}
+.bt{flex:1;height:10px;background:#fff;border:1px solid var(--dk);}
+.bf{height:100%;background:var(--blue);transition:width .6s;}
+.sv{width:28px;text-align:right;font-family:var(--fm);font-size:11px;font-weight:bold;}
+#micWrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;}
+#micBtn{width:68px;height:68px;border-radius:50%;border:4px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:28px;display:flex;align-items:center;justify-content:center;}
+#micBtn:hover{background:var(--light);}
+#micBtn.on{background:#cc0000;border-color:#fff #600 #600 #fff;animation:pulse .8s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(204,0,0,.5)}50%{box-shadow:0 0 0 8px rgba(204,0,0,0)}}
+#micLbl{font-size:10px;color:var(--mid);text-align:center;width:72px;}
+#scoreRight{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;width:90px;}
+#gradeBox{font-family:var(--fm);font-size:52px;font-weight:bold;width:80px;text-align:center;line-height:1;padding:4px;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);color:var(--mid);}
+#gradeSub{font-size:10px;color:var(--mid);text-align:center;line-height:1.3;}
+#scoreDiff{font-size:11px;font-weight:bold;text-align:center;}
+#encouragement{font-size:11px;text-align:center;color:#006600;font-weight:bold;min-height:14px;}
+
+/* legend */
+.legend{display:flex;gap:8px;font-size:11px;align-items:center;}
+.ldot{width:11px;height:11px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:2px;}
+
+#pop{position:fixed;display:none;flex-direction:column;gap:3px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;padding:4px;z-index:200;}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setup">
+  <div class="win" id="setupBox">
+    <div class="tb"><span>📂 Speech Drill — 导入卡片</span></div>
+    <div style="padding:10px;display:flex;flex-direction:column;gap:8px;">
+      <div id="dropzone" onclick="document.getElementById('fi').click()">
+        <div style="font-size:24px;margin-bottom:6px;">📄</div>
+        <div>拖入 <code>.json</code> 卡片文件，或点击选择</div>
+        <div style="font-size:11px;margin-top:3px;color:#808080;">支持主程序导出的 engCard JSON（含 masks / note）</div>
+      </div>
+      <input type="file" id="fi" accept=".json" style="display:none;" onchange="onFI(this)">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn" onclick="toggleCfg()">⚙ Azure 配置</button>
+        <span id="cfgStatus" style="font-size:11px;"></span>
+      </div>
+      <div id="cfgPanel">
+        <div class="cfg-row">
+          <label>API Key</label>
+          <input type="password" id="azKey" placeholder="Azure Speech Key 1">
+          <button class="btn" onclick="toggleKeyVis()" style="padding:2px 6px;font-size:11px;">👁</button>
+        </div>
+        <div class="cfg-row">
+          <label>Region</label>
+          <input type="text" id="azRegion" placeholder="例如 eastus">
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn pri" onclick="saveCfg()">✓ 保存</button>
+          <button class="btn" onclick="testCfg()">▶ 测试</button>
+          <span id="testMsg" style="font-size:11px;"></span>
+        </div>
+        <div style="font-size:11px;color:var(--mid);margin-top:5px;line-height:1.6;">密钥保存在浏览器本地。Azure Portal → 语音资源 → 密钥和终结点</div>
+      </div>
+      <div id="impMsg" style="font-size:11px;color:#cc0000;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+  <div class="tb" style="flex-shrink:0;">
+    <span id="drillTitle">🎙 Speech Drill</span>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <select id="cardSel" style="font-family:var(--f);font-size:11px;background:#fff;border:1px solid var(--dk);padding:1px 3px;display:none;" onchange="loadCard()"></select>
+      <button class="btn" style="font-size:11px;padding:1px 7px;background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.4) rgba(0,0,80,.4) rgba(0,0,80,.4) rgba(255,255,255,.4);" onclick="backToSetup()">◀ 换卡片</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="toolbar">
+      <span style="font-size:11px;font-weight:bold;color:var(--blue);">划词遮蔽:</span>
+      <button class="btn" id="maskBtn" onclick="applyMask()" disabled>▓ 遮蔽</button>
+      <button class="btn" id="umBtn" onclick="clearMask()" disabled style="color:#cc0000;">✕ 取消</button>
+      <button class="btn" onclick="resetView()">↺ 重置</button>
+      <div id="legendRow" style="display:none;margin-left:8px;" class="legend">
+        <span><span class="ldot" style="background:#d4edda;border:1px solid #155724;"></span>好</span>
+        <span><span class="ldot" style="background:#fff3cd;border:1px solid #5c3d00;"></span>可</span>
+        <span><span class="ldot" style="background:#f8d7da;border:1px solid #721c24;"></span>差</span>
+        <span><span class="ldot" style="background:#e2e3e5;border:1px solid #383d41;"></span>漏</span>
+        <span style="color:#884400;font-weight:bold;">ˈ</span><span style="color:#884400;">重音偏移</span>
+      </div>
+    </div>
+
+    <div id="textWrap">
+      <div id="cardArea" onmouseup="onSel()" ontouchend="onSel()">请先导入卡片</div>
+      <div id="noteArea"></div>
+    </div>
+
+    <!-- phoneme feedback -->
+    <div id="phonemeRow"></div>
+
+    <div id="pop">
+      <button class="btn" onclick="applyMask()">▓ 遮蔽</button>
+      <button class="btn" onclick="clearMask()" style="color:#cc0000;">✕ 取消</button>
+    </div>
+
+    <div id="controls">
+      <div id="scoreLeft">
+        <div style="font-size:11px;font-weight:bold;color:var(--blue);margin-bottom:2px;">评分明细</div>
+        <div class="srow"><span class="sl">发音准确</span><div class="bt"><div class="bf" id="bAcc" style="width:0%"></div></div><span class="sv" id="vAcc" style="color:var(--mid);">--</span></div>
+        <div class="srow"><span class="sl">流畅自然</span><div class="bt"><div class="bf" id="bFlu" style="width:0%"></div></div><span class="sv" id="vFlu" style="color:var(--mid);">--</span></div>
+        <div class="srow"><span class="sl">内容完整</span><div class="bt"><div class="bf" id="bCom" style="width:0%"></div></div><span class="sv" id="vCom" style="color:var(--mid);">--</span></div>
+        <div class="srow"><span class="sl">语调韵律</span><div class="bt"><div class="bf" id="bPro" style="width:0%"></div></div><span class="sv" id="vPro" style="color:var(--mid);">--</span></div>
+        <div style="margin-top:3px;display:flex;gap:10px;font-size:11px;">
+          <span style="color:var(--mid);">最高:</span><span id="bestDisp" style="font-weight:bold;font-family:var(--fm);color:var(--blue);">--</span>
+          <span style="color:var(--mid);">次数:</span><span id="drillCnt" style="font-weight:bold;font-family:var(--fm);">0</span>
+        </div>
+      </div>
+      <div id="micWrap">
+        <div id="micBtn" onclick="toggleRec()">🎙</div>
+        <div id="micLbl">点击录音</div>
+        <div id="encouragement"></div>
+      </div>
+      <div id="scoreRight">
+        <div style="font-size:11px;font-weight:bold;color:var(--blue);text-align:center;">等级</div>
+        <div id="gradeBox">--</div>
+        <div id="gradeSub"></div>
+        <div id="scoreDiff"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sbar">
+    <div class="sp" id="sMic">就绪</div>
+    <div class="sp" id="sMask">遮蔽: 0</div>
+    <div class="sp" id="sAz">Azure: 未配置</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+let cards=[], cur=null, origText='';
+let selS=0, selE=0;
+let isRec=false, audioCtx=null, processor=null, micStream=null, pcmChunks=[];
+let drillN=0, bestScores={}, lastScore=null;
+let azKey='', azRegion='';
+
+(function(){
+  azKey    = localStorage.getItem('sd_key')||'';
+  azRegion = localStorage.getItem('sd_region')||'';
+  document.getElementById('azKey').value    = azKey;
+  document.getElementById('azRegion').value = azRegion;
+  updateCfgStatus();
+  document.getElementById('cfgPanel').style.display='none';
+})();
+
+function updateCfgStatus(){
+  const el=document.getElementById('cfgStatus'), saz=document.getElementById('sAz');
+  if(azKey&&azRegion){el.textContent='已配置 ✓';el.style.color='#006600';saz.textContent='Azure: '+azRegion;}
+  else{el.textContent='未配置 — 无法评分';el.style.color='#cc0000';saz.textContent='Azure: 未配置';}
+}
+function toggleCfg(){const p=document.getElementById('cfgPanel');p.style.display=p.style.display==='none'?'block':'none';}
+function toggleKeyVis(){const k=document.getElementById('azKey');k.type=k.type==='password'?'text':'password';}
+function saveCfg(){
+  azKey=document.getElementById('azKey').value.trim();
+  azRegion=document.getElementById('azRegion').value.trim().toLowerCase().replace(/\s/g,'');
+  if(!azKey||!azRegion){setTM('请填写 Key 和 Region','#cc0000');return;}
+  localStorage.setItem('sd_key',azKey);localStorage.setItem('sd_region',azRegion);
+  updateCfgStatus();setTM('已保存 ✓','#006600');
+}
+async function testCfg(){
+  const k=document.getElementById('azKey').value.trim();
+  const r=document.getElementById('azRegion').value.trim().toLowerCase().replace(/\s/g,'');
+  if(!k||!r){setTM('请先填写','#cc0000');return;}
+  setTM('测试中...','#808080');
+  try{
+    const res=await fetch(`https://${r}.api.cognitive.microsoft.com/sts/v1.0/issuetoken`,{method:'POST',headers:{'Ocp-Apim-Subscription-Key':k}});
+    setTM(res.ok?'连接成功 ✓':'失败 '+res.status,res.ok?'#006600':'#cc0000');
+  }catch(e){setTM('网络错误','#cc0000');}
+}
+function setTM(t,c){const el=document.getElementById('testMsg');el.textContent=t;el.style.color=c;}
+
+// file
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);});
+function onFI(inp){if(inp.files[0])readFile(inp.files[0]);}
+function readFile(f){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      let p=JSON.parse(e.target.result);
+      if(!Array.isArray(p))p=[p];
+      p=p.filter(c=>c&&c.text);
+      if(!p.length){document.getElementById('impMsg').textContent='未找到有效卡片';return;}
+      p.forEach(c=>{if(!c.masks)c.masks=[];if(!c.id)c.id=Date.now()+Math.random();});
+      cards=p;
+      dz.classList.add('ok');
+      dz.innerHTML=`<div style="font-size:22px;margin-bottom:4px;">✓</div><div>已载入 ${p.length} 张卡片</div>`;
+      document.getElementById('impMsg').textContent='';
+      startDrill();
+    }catch(err){document.getElementById('impMsg').textContent='JSON 解析失败: '+err.message;}
+  };
+  r.readAsText(f);
+}
+
+function startDrill(){
+  const sel=document.getElementById('cardSel');
+  if(cards.length>1){
+    sel.innerHTML=cards.map((c,i)=>`<option value="${i}">${i+1}. ${c.text.slice(0,40)}...</option>`).join('');
+    sel.style.display='';
+  }else sel.style.display='none';
+  document.getElementById('setup').style.display='none';
+  document.getElementById('app').style.display='flex';
+  loadCard();
+}
+function backToSetup(){if(isRec)stopRec();document.getElementById('app').style.display='none';document.getElementById('setup').style.display='flex';}
+function loadCard(){
+  const idx=cards.length>1?parseInt(document.getElementById('cardSel').value)||0:0;
+  cur=JSON.parse(JSON.stringify(cards[idx]));
+  if(!cur)return;
+  origText=cur.text;
+  drillN=0;lastScore=null;
+  document.getElementById('drillCnt').textContent='0';
+  document.getElementById('bestDisp').textContent=bestScores[cur.id]!=null?bestScores[cur.id]+'分':'--';
+  document.getElementById('drillTitle').textContent='🎙 '+cur.text.slice(0,28)+'...';
+  document.getElementById('sMask').textContent='遮蔽: '+(cur.masks||[]).length;
+  document.getElementById('encouragement').textContent='';
+  document.getElementById('legendRow').style.display='none';
+  document.getElementById('phonemeRow').style.display='none';
+  document.getElementById('phonemeRow').innerHTML='';
+  // show note if exists
+  const note=cur.note&&cur.note.trim();
+  const na=document.getElementById('noteArea');
+  if(note){na.textContent='📝 '+note;na.style.display='block';}
+  else na.style.display='none';
+  renderPlain();
+  resetScore();
+}
+
+// ── text rendering ──
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function renderPlain(){
+  if(!cur){document.getElementById('cardArea').innerHTML='请先导入卡片';return;}
+  const text=origText, masks=cur.masks||[];
+  if(!masks.length){document.getElementById('cardArea').innerHTML=esc(text).replace(/\n/g,'<br>');return;}
+  const evs=[];
+  masks.forEach((m,i)=>{evs.push({p:m.start,t:'o',i},{p:m.end,t:'c',i});});
+  evs.sort((a,b)=>a.p-b.p||(a.t==='c'?-1:1));
+  let html='',pos=0,inM=false,mi=-1;
+  for(const ev of evs){
+    const chunk=text.slice(pos,ev.p);
+    if(chunk){
+      if(inM) html+=`<span class="mk" data-mi="${mi}" onclick="clickMk(${mi})">${chunk.replace(/\S/g,'█')}</span>`;
+      else    html+=esc(chunk).replace(/\n/g,'<br>');
+    }
+    pos=ev.p;
+    if(ev.t==='o'){inM=true;mi=ev.i;}else{inM=false;mi=-1;}
+  }
+  if(pos<text.length)html+=esc(text.slice(pos)).replace(/\n/g,'<br>');
+  document.getElementById('cardArea').innerHTML=html;
+}
+
+function renderScored(wordData){
+  // wordData: [{word, score, error, ipa, stressOk, phonemeIssues:[{ipa,score}]}]
+  if(!cur)return;
+  const text=origText, masks=cur.masks||[];
+  const spokenSet=new Set(wordData.filter(w=>w.error!=='Insertion').map(w=>w.word.toLowerCase().replace(/[^a-z']/g,'')).filter(w=>w));
+  const maskRanges=masks.map((m,i)=>({...m,i}));
+  function getMask(p){return maskRanges.find(m=>p>=m.start&&p<m.end)||null;}
+  const maskResult={};
+  masks.forEach((m,i)=>{
+    const chunk=text.slice(m.start,m.end);
+    const mw=chunk.toLowerCase().replace(/[^a-z\s']/g,' ').split(/\s+/).filter(w=>w.length>1);
+    maskResult[i]=(mw.length===0||mw.filter(w=>spokenSet.has(w)).length/mw.length>=0.6)?'correct':'wrong';
+  });
+
+  // char→wordData map
+  const charInfo={};
+  let sf=0;
+  for(const wd of wordData){
+    const clean=wd.word.replace(/[^a-zA-Z0-9'\-]/g,'');
+    if(!clean)continue;
+    const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
+    if(idx>=0){for(let p=idx;p<idx+clean.length;p++)charInfo[p]=wd;sf=idx+clean.length;}
+  }
+
+  let html='',pos=0;
+  while(pos<text.length){
+    const ch=text[pos];
+    if(ch==='\n'){html+='<br>';pos++;continue;}
+    if(ch===' '){html+=' ';pos++;continue;}
+    let end=pos;
+    while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
+    const word=text.slice(pos,end);
+    const mInfo=getMask(pos);
+    if(mInfo){
+      const res=maskResult[mInfo.i];
+      const bg=res==='correct'?'background:#003399;color:#fff':'background:#cc0000;color:#fff';
+      html+=`<span style="${bg};border-radius:2px;padding:0 2px;">${esc(word)}</span>`;
+    }else{
+      const wd=charInfo[pos];
+      let cls='',extra='';
+      if(wd){
+        if(wd.error==='Omission')cls='missed';
+        else if(wd.score>=85)cls='good';
+        else if(wd.score>=60)cls='ok';
+        else cls='bad';
+        if(wd.stressOk===false)extra=' data-stress="wrong"';
+      }
+      html+=cls?`<span class="w ${cls}"${extra} title="${wd?wd.ipa||'':''}">${esc(word)}</span>`:esc(word);
+    }
+    pos=end;
+  }
+  document.getElementById('cardArea').innerHTML=html;
+  document.getElementById('legendRow').style.display='flex';
+
+  // phoneme feedback row — only words with issues
+  const issues=wordData.filter(w=>w.error!=='Insertion'&&w.error!=='None'||(w.phonemeIssues&&w.phonemeIssues.length>0)||(w.stressOk===false));
+  const badWords=wordData.filter(w=>w.score<85&&w.error!=='Omission'&&w.error!=='Insertion');
+  const pr=document.getElementById('phonemeRow');
+  if(badWords.length>0||issues.length>0){
+    const toShow=[...new Map([...badWords,...issues].map(w=>[w.word,w])).values()];
+    pr.innerHTML='<span style="font-size:11px;font-weight:bold;color:var(--blue);margin-right:4px;flex-shrink:0;">需注意:</span>'+
+      toShow.map(w=>{
+        const scoreColor=w.score>=85?'#006600':w.score>=60?'#884400':'#cc0000';
+        const phIssues=w.phonemeIssues&&w.phonemeIssues.length?
+          w.phonemeIssues.map(p=>`<span style="color:#cc0000;">${esc(p.ipa)}</span>`).join(' '):
+          '';
+        const stressMark=w.stressOk===false?`<div class="pw-stress">重音位置偏移</div>`:'';
+        const errLabel=w.error&&w.error!=='None'&&w.error!=='Omission'?`<span style="color:#884400;font-size:9px;">${w.error}</span>`:'';
+        return `<div class="ph-word" title="${esc(w.ipa||'')}">
+          <div class="pw-text" style="color:${scoreColor};">${esc(w.word)} <span style="font-size:10px;">${w.score}</span></div>
+          <div class="pw-ipa">${esc(w.ipa||'')}</div>
+          ${phIssues?`<div class="pw-issues">${phIssues}</div>`:''}
+          ${stressMark}${errLabel}
+        </div>`;
+      }).join('');
+    pr.style.display='flex';
+  }else{
+    pr.style.display='none';
+  }
+}
+
+function resetView(){
+  renderPlain();
+  document.getElementById('legendRow').style.display='none';
+  document.getElementById('phonemeRow').style.display='none';
+}
+function clickMk(i){
+  const el=document.getElementById('cardArea').querySelector(`[data-mi="${i}"]`);
+  if(!el)return;
+  const chunk=origText.slice(cur.masks[i].start,cur.masks[i].end);
+  if(el.classList.contains('vis')){el.className='mk';el.innerHTML=chunk.replace(/\S/g,'█');}
+  else{el.className='mk vis';el.textContent=chunk;}
+}
+
+// selection
+function onSel(){
+  if(!cur)return;
+  setTimeout(()=>{
+    const sel=window.getSelection();
+    if(!sel||sel.rangeCount===0||sel.isCollapsed){hidePop();setBtn(false);return;}
+    const range=sel.getRangeAt(0);
+    const ca=document.getElementById('cardArea');
+    if(!ca.contains(range.commonAncestorContainer)){hidePop();setBtn(false);return;}
+    const pre=document.createRange();
+    pre.setStart(ca,0);pre.setEnd(range.startContainer,range.startOffset);
+    selS=pre.toString().length;selE=selS+range.toString().length;
+    if(selE<=selS){hidePop();setBtn(false);return;}
+    setBtn(true);
+    const r=range.getBoundingClientRect();
+    const pop=document.getElementById('pop');
+    pop.style.display='flex';pop.style.left=(r.left+scrollX)+'px';pop.style.top=(r.bottom+scrollY+4)+'px';
+  },10);
+}
+function setBtn(on){document.getElementById('maskBtn').disabled=!on;document.getElementById('umBtn').disabled=!on;}
+function hidePop(){document.getElementById('pop').style.display='none';}
+function applyMask(){
+  if(!cur||selE<=selS)return;
+  const ex=cur.masks.find(m=>m.start<=selS&&m.end>=selE);
+  if(ex)cur.masks=cur.masks.filter(m=>m!==ex);
+  else{cur.masks=cur.masks.filter(m=>m.end<=selS||m.start>=selE);cur.masks.push({start:selS,end:selE});}
+  hidePop();setBtn(false);renderPlain();
+  document.getElementById('sMask').textContent='遮蔽: '+cur.masks.length;
+}
+function clearMask(){
+  if(!cur)return;
+  cur.masks=cur.masks.filter(m=>!(m.start<selE&&m.end>selS));
+  hidePop();setBtn(false);renderPlain();
+  document.getElementById('sMask').textContent='遮蔽: '+cur.masks.length;
+}
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('pop'),ca=document.getElementById('cardArea');
+  if(pop.style.display==='flex'&&!pop.contains(e.target)&&!ca.contains(e.target))hidePop();
+});
+
+// ── PCM recording → WAV ──
+const SR=16000;
+async function toggleRec(){if(isRec)stopRec();else await startRec();}
+async function startRec(){
+  if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:SR,channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:SR});
+    const src=audioCtx.createMediaStreamSource(micStream);
+    processor=audioCtx.createScriptProcessor(4096,1,1);
+    pcmChunks=[];
+    processor.onaudioprocess=e=>{if(isRec)pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));};
+    src.connect(processor);processor.connect(audioCtx.destination);
+    isRec=true;
+    const m=document.getElementById('micBtn');
+    m.classList.add('on');m.innerHTML='⏹';
+    document.getElementById('micLbl').textContent='点击停止';
+    document.getElementById('sMic').textContent='● 录音中';
+    resetScore();renderPlain();
+    document.getElementById('phonemeRow').style.display='none';
+  }catch(e){alert('无法访问麦克风: '+e.message);}
+}
+function stopRec(){
+  if(!isRec)return;
+  isRec=false;
+  if(processor){processor.disconnect();processor=null;}
+  if(audioCtx){audioCtx.close();audioCtx=null;}
+  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
+  const m=document.getElementById('micBtn');
+  m.classList.remove('on');m.innerHTML='🎙';
+  document.getElementById('micLbl').textContent='点击录音';
+  document.getElementById('sMic').textContent='处理中...';
+  sendToAzure(buildWAV(pcmChunks,SR));
+}
+function buildWAV(chunks,sr){
+  const total=chunks.reduce((s,c)=>s+c.length,0);
+  const merged=new Float32Array(total);
+  let off=0;for(const c of chunks){merged.set(c,off);off+=c.length;}
+  const pcm16=new Int16Array(total);
+  for(let i=0;i<total;i++){const s=Math.max(-1,Math.min(1,merged[i]));pcm16[i]=s<0?s*0x8000:s*0x7FFF;}
+  const buf=new ArrayBuffer(44+pcm16.byteLength);
+  const v=new DataView(buf);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF');v.setUint32(4,36+pcm16.byteLength,true);ws(8,'WAVE');
+  ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+  ws(36,'data');v.setUint32(40,pcm16.byteLength,true);
+  new Int16Array(buf,44).set(pcm16);
+  return new Blob([buf],{type:'audio/wav'});
+}
+
+// ── Azure Pronunciation Assessment ──
+async function sendToAzure(wav){
+  if(!cur)return;
+  const refText=origText.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+  const paCfg={ReferenceText:refText,GradingSystem:'HundredMark',Dimension:'Comprehensive',EnableMiscue:true};
+  const jsonBytes=new TextEncoder().encode(JSON.stringify(paCfg));
+  let bin='';jsonBytes.forEach(b=>bin+=String.fromCharCode(b));
+  const b64=btoa(bin);
+  const ep=`https://${azRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-GB&format=detailed`;
+  try{
+    const res=await fetch(ep,{method:'POST',headers:{
+      'Ocp-Apim-Subscription-Key':azKey,
+      'Content-Type':'audio/wav; codecs=audio/pcm; samplerate=16000',
+      'Pronunciation-Assessment':b64,
+      'Accept':'application/json'
+    },body:wav});
+    const txt=await res.text();
+    console.log('Azure response:',txt.slice(0,800));
+    if(!res.ok){document.getElementById('sMic').textContent='Azure 错误 '+res.status;return;}
+    handleResult(JSON.parse(txt));
+  }catch(e){document.getElementById('sMic').textContent='网络错误: '+e.message.slice(0,40);console.error(e);}
+}
+
+function handleResult(data){
+  const nb=data.NBest&&data.NBest[0];
+  if(!nb){document.getElementById('sMic').textContent='未识别，请重试';return;}
+  const pa=nb.PronunciationAssessment;
+  if(!pa){document.getElementById('sMic').textContent='无评分数据';return;}
+
+  const acc=Math.round(pa.AccuracyScore||0);
+  const flu=Math.round(pa.FluencyScore||0);
+  const com=Math.round(pa.CompletenessScore||0);
+  const pro=Math.round(pa.PronScore||0);
+  const overall=Math.round(acc*0.35+flu*0.30+com*0.20+pro*0.15);
+
+  const grade=overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
+  const gradeColor={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  document.getElementById('gradeBox').textContent=grade;
+  document.getElementById('gradeBox').style.color=gradeColor;
+  document.getElementById('gradeSub').textContent={A:'Excellent',B:'Good',C:'Fair',D:'Needs Work'}[grade];
+
+  if(lastScore!==null){
+    const diff=overall-lastScore;
+    const el=document.getElementById('scoreDiff');
+    el.textContent=diff>0?'↑ +'+diff:diff<0?'↓ '+diff:'= 持平';
+    el.style.color=diff>0?'#006600':diff<0?'#cc0000':'#808080';
+  }
+  lastScore=overall;
+  setBar('Acc',acc);setBar('Flu',flu);setBar('Com',com);setBar('Pro',pro);
+
+  // Build rich word data with phoneme info
+  const wordData=(nb.Words||[]).map(w=>{
+    const wpa=w.PronunciationAssessment||{};
+    const phonemes=w.Phonemes||[];
+    // phoneme issues: score < 60
+    const phIssues=phonemes.filter(p=>(p.PronunciationAssessment?.AccuracyScore||100)<60)
+      .map(p=>({ipa:p.Phoneme||'',score:Math.round(p.PronunciationAssessment?.AccuracyScore||0)}));
+    // stress: check if any syllable has wrong stress
+    const syllables=w.Syllables||[];
+    const stressOk=syllables.length===0?null:
+      syllables.every(s=>(s.PronunciationAssessment?.AccuracyScore||100)>=60);
+    // IPA from phonemes
+    const ipa=phonemes.map(p=>p.Phoneme||'').join('');
+    return{
+      word:w.Word,
+      score:Math.round(wpa.AccuracyScore||0),
+      error:wpa.ErrorType||'None',
+      ipa:ipa?'/'+ipa+'/':'',
+      stressOk:stressOk===false?false:null,
+      phonemeIssues:phIssues
+    };
+  });
+
+  renderScored(wordData);
+
+  drillN++;
+  document.getElementById('drillCnt').textContent=drillN;
+  const prev=bestScores[cur.id];
+  if(prev==null||overall>prev){
+    bestScores[cur.id]=overall;
+    document.getElementById('bestDisp').textContent=overall+'分';
+    document.getElementById('encouragement').textContent=prev!=null?'🌟 新高分！':'';
+  }else{
+    document.getElementById('encouragement').textContent=overall>=75?'💪 继续！':'加油！';
+  }
+  document.getElementById('sMic').textContent='就绪';
+}
+
+function setBar(k,v){
+  const c=v>=80?'#006600':v>=60?'#884400':'#cc0000';
+  document.getElementById('b'+k).style.width=v+'%';
+  document.getElementById('b'+k).style.background=c;
+  document.getElementById('v'+k).textContent=v;
+  document.getElementById('v'+k).style.color=c;
+}
+function resetScore(){
+  document.getElementById('gradeBox').textContent='--';
+  document.getElementById('gradeBox').style.color='var(--mid)';
+  document.getElementById('gradeSub').textContent='';
+  document.getElementById('scoreDiff').textContent='';
+  document.getElementById('encouragement').textContent='';
+  ['Acc','Flu','Com','Pro'].forEach(k=>{
+    document.getElementById('b'+k).style.width='0%';
+    document.getElementById('v'+k).textContent='--';
+    document.getElementById('v'+k).style.color='var(--mid)';
+  });
+}
+</script>
+</body>
+</html>

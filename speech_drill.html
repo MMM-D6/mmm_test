@@ -243,7 +243,7 @@ let isRec=false, recognizer=null;
 let drillN=0, bestScores={}, lastScore=null;
 let azKey='', azRegion='';
 // waveform
-let waveActx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
+let waveCtx=null, waveAnim=null, waveAnalyser=null, waveStream=null;
 
 (function(){
   azKey    = localStorage.getItem('sd_key')||'';
@@ -305,13 +305,7 @@ function startDrill(){
   loadCard();
 }
 function backToSetup(){
-  if(isRec&&recognizer){
-    isRec=false;
-    const rec=recognizer;recognizer=null;
-    try{rec.stopContinuousRecognitionAsync(()=>rec.close(),()=>{try{rec.close();}catch(e){}});}
-    catch(e){try{rec.close();}catch(_){}}
-    stopWave();
-  }
+  if(isRec)stopRec();
   document.getElementById('app').style.display='none';
   document.getElementById('setup').style.display='flex';
 }
@@ -362,25 +356,20 @@ function renderScored(wordData){
   if(!cur)return;
   const text=origText, masks=cur.masks||[];
 
-  // words actually spoken (not insertions) — for mask evaluation
+  // spokenSet: words actually said (not insertions, not missed) — for mask evaluation
   const spokenSet=new Set(
-    wordData.filter(w=>w.error!=='Insertion')
+    wordData
+      .filter(w=>w.error!=='Insertion'&&w.error!=='Missed')
       .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
       .filter(w=>w.length>0)
   );
 
-  // words explicitly flagged as Omission — for fallback missed coloring
-  const omittedSet=new Set(
-    wordData.filter(w=>w.error==='Omission')
-      .map(w=>w.word.toLowerCase().replace(/[^a-z']/g,''))
-      .filter(w=>w.length>0)
-  );
-
-  // char→word map: skip Insertions (they have no position in reference text)
+  // char→word map: align wordData entries back to positions in original text
+  // wordData is already aligned to refTokens order, so we walk the text sequentially
   const charInfo={};
   let sf=0;
   for(const wd of wordData){
-    if(wd.error==='Insertion')continue;
+    if(wd.error==='Insertion')continue; // insertions have no ref text position
     const clean=wd.word.replace(/^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$/g,'').replace(/[^a-zA-Z0-9'\-]/g,'');
     if(!clean)continue;
     const idx=text.toLowerCase().indexOf(clean.toLowerCase(),sf);
@@ -389,7 +378,7 @@ function renderScored(wordData){
     sf=idx+clean.length;
   }
 
-  // mask result: >=60% of mask words must be in spokenSet
+  // mask result: >=60% of mask words spoken
   const maskRes={};
   masks.forEach((m,i)=>{
     const chunk=text.slice(m.start,m.end);
@@ -418,14 +407,11 @@ function renderScored(wordData){
       if(!wd){for(let p=pos+1;p<end&&!wd;p++)wd=charInfo[p];}
       let cls='';
       if(wd){
-        if(wd.error==='Omission')      cls='missed';
-        else if(wd.score>=80)          cls='good';
-        else if(wd.score>=60)          cls='ok';
-        else                           cls='bad';
-      }else{
-        // charInfo miss: check if this token is in the omitted set
-        const tk=token.toLowerCase().replace(/[^a-z']/g,'');
-        if(tk.length>0&&omittedSet.has(tk))cls='missed';
+        const err=wd.error;
+        if(err==='Missed'||err==='Omission') cls='missed';
+        else if(wd.score>=80)               cls='good';
+        else if(wd.score>=60)               cls='ok';
+        else                                cls='bad';
       }
       html+=cls?`<span class="w ${cls}">${esc(token)}</span>`:esc(token);
     }
@@ -492,11 +478,10 @@ document.addEventListener('click',e=>{
 // ── waveform ──
 const WAVE_BARS=9;
 function startWave(stream){
-  stopWave(); // always clean up previous session first
   waveStream=stream;
-  waveActx=new(window.AudioContext||window.webkitAudioContext)();
-  const src=waveActx.createMediaStreamSource(stream);
-  waveAnalyser=waveActx.createAnalyser();
+  const actx=new(window.AudioContext||window.webkitAudioContext)();
+  const src=actx.createMediaStreamSource(stream);
+  waveAnalyser=actx.createAnalyser();
   waveAnalyser.fftSize=256;
   src.connect(waveAnalyser);
   const data=new Uint8Array(waveAnalyser.frequencyBinCount);
@@ -516,9 +501,6 @@ function startWave(stream){
 }
 function stopWave(){
   if(waveAnim){cancelAnimationFrame(waveAnim);waveAnim=null;}
-  if(waveActx){try{waveActx.close();}catch(e){}waveActx=null;}
-  if(waveStream){waveStream.getTracks().forEach(t=>t.stop());waveStream=null;}
-  waveAnalyser=null;
   const bars=Array.from({length:WAVE_BARS},(_,i)=>document.getElementById('wb'+i));
   bars.forEach(b=>{b.style.height='3px';b.classList.remove('active');});
 }
@@ -529,12 +511,10 @@ function toggleRec(){if(isRec)stopRec();else startRec();}
 async function startRec(){
   if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
   if(typeof SpeechSDK==='undefined'){alert('Speech SDK 未加载，请检查网络');return;}
-  if(isRec)return;
 
-  resetScore();renderPlain();
-
+  // start waveform
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     startWave(stream);
   }catch(e){console.warn('waveform error',e);}
 
@@ -542,6 +522,9 @@ async function startRec(){
   const speechConfig=SpeechSDK.SpeechConfig.fromSubscription(azKey,azRegion);
   speechConfig.speechRecognitionLanguage='en-GB';
 
+  // FIX: use fromJSON to ensure HundredMark grading system is correctly applied.
+  // Direct property assignment (.gradingSystem = ...) is silently ignored by the SDK
+  // and falls back to FivePoint (5-point scale), causing single-digit scores.
   const paCfg=SpeechSDK.PronunciationAssessmentConfig.fromJSON(JSON.stringify({
     referenceText: refText,
     gradingSystem: 'HundredMark',
@@ -554,62 +537,50 @@ async function startRec(){
   recognizer=new SpeechSDK.SpeechRecognizer(speechConfig,audioConfig);
   paCfg.applyTo(recognizer);
 
-  const segments=[];
-  recognizer.recognized=(s,e)=>{
-    if(e.result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
-      segments.push(e.result);
-      console.log('[PA] segment:',e.result.text);
-    }
-  };
-  recognizer._segments=segments;
-
-  recognizer.startContinuousRecognitionAsync(
-    ()=>{
-      isRec=true;
+  recognizer.recognizeOnceAsync(
+    result=>{
+      isRec=false;
+      stopWave();
       const m=document.getElementById('micBtn');
-      m.classList.add('on');m.innerHTML='⏹';
-      document.getElementById('micLbl').textContent='按此停止';
-      document.getElementById('sMic').textContent='● 录音中';
+      m.classList.remove('on');m.innerHTML='🎙';
+      document.getElementById('micLbl').textContent='点击录音';
+
+      if(result.reason===SpeechSDK.ResultReason.RecognizedSpeech){
+        const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(result);
+        handleResult(paResult);
+      }else if(result.reason===SpeechSDK.ResultReason.NoMatch){
+        document.getElementById('sMic').textContent='未识别到语音，请重试';
+      }else{
+        document.getElementById('sMic').textContent='识别失败';
+        console.error(result.errorDetails);
+      }
+      recognizer.close();recognizer=null;
     },
     err=>{
-      console.error('startContinuous error:',err);
-      document.getElementById('sMic').textContent='启动失败: '+String(err).slice(0,60);
+      isRec=false;
       stopWave();
+      const m=document.getElementById('micBtn');
+      m.classList.remove('on');m.innerHTML='🎙';
+      document.getElementById('micLbl').textContent='点击录音';
+      document.getElementById('sMic').textContent='错误: '+String(err).slice(0,50);
+      console.error(err);
       if(recognizer){recognizer.close();recognizer=null;}
     }
   );
+
+  isRec=true;
+  const m=document.getElementById('micBtn');
+  m.classList.add('on');m.innerHTML='⏹';
+  document.getElementById('micLbl').textContent='说完自动结束';
+  document.getElementById('sMic').textContent='● 录音中';
+  resetScore();renderPlain();
 }
 
 function stopRec(){
-  if(!isRec||!recognizer)return;
-  isRec=false;
-  const m=document.getElementById('micBtn');
-  m.classList.remove('on');m.innerHTML='🎙';
-  document.getElementById('micLbl').textContent='点击录音';
+  // recognizeOnce auto-stops; just update UI hint
+  if(!isRec)return;
+  document.getElementById('micLbl').textContent='处理中...';
   document.getElementById('sMic').textContent='分析中...';
-
-  const rec=recognizer;
-  recognizer=null;
-  rec.stopContinuousRecognitionAsync(
-    ()=>{
-      stopWave();
-      const segs=rec._segments||[];
-      console.log('[PA] total segments:',segs.length);
-      if(!segs.length){
-        document.getElementById('sMic').textContent='未识别到语音，请重试';
-        rec.close();return;
-      }
-      const paResult=SpeechSDK.PronunciationAssessmentResult.fromResult(segs[segs.length-1]);
-      handleResult(paResult);
-      rec.close();
-    },
-    err=>{
-      console.error('stopContinuous error:',err);
-      document.getElementById('sMic').textContent='停止出错: '+String(err).slice(0,60);
-      stopWave();
-      try{rec.close();}catch(e){}
-    }
-  );
 }
 
 function handleResult(paResult){
@@ -630,31 +601,61 @@ function handleResult(paResult){
     pro=Math.max(0,Math.round(flu*(1-errs/(wl.length||1))));
   }
 
-  // ── word-level data (no phoneme fields needed) ──
-  const allWords=detail.Words||[];
-  const wordData=allWords.map(w=>({
+  // ── word-level data from SDK ──
+  const allWords=(detail.Words||[]).map(w=>({
     word:  w.Word||'',
     score: Math.round((w.PronunciationAssessment||{}).AccuracyScore||0),
     error: (w.PronunciationAssessment||{}).ErrorType||'None'
   }));
 
-  // ── coverage: spoken words / total reference words ──
-  const refTokens=(origText||'').replace(/\n/g,' ').trim().split(/\s+/).filter(w=>w.length>0);
+  // ── self-computed coverage via diff against reference text ──
+  // Azure only reports words it heard — it never tells us about words we didn't say.
+  // So we align the recognized words (minus Insertions) against the reference token list
+  // and mark any reference token with no match as 'missed'.
+  const refTokens=(origText||'').replace(/\n/g,' ').trim()
+    .split(/\s+/).filter(w=>w.length>0);
+
+  // normalized recognized words (excluding insertions)
+  const recWords=allWords
+    .filter(w=>w.error!=='Insertion')
+    .map(w=>({...w, norm:w.word.toLowerCase().replace(/[^a-z']/g,'')}))
+    .filter(w=>w.norm.length>0);
+
+  // greedy sequential alignment: for each ref token find the next matching rec word
+  const refNorm=refTokens.map(t=>t.toLowerCase().replace(/[^a-z']/g,''));
+  // result parallel to refTokens: null = not matched (missed), or the matched recWord
+  const refMatch=new Array(refTokens.length).fill(null);
+  let ri=0;
+  for(let i=0;i<refNorm.length&&ri<recWords.length;i++){
+    if(refNorm[i]===recWords[ri].norm){
+      refMatch[i]=recWords[ri];
+      ri++;
+    }
+  }
+
+  // coverage = matched ref tokens / total ref tokens
+  const matchedCount=refMatch.filter(m=>m!==null).length;
   const refWordCount=refTokens.length||1;
-  const omissionCount=wordData.filter(w=>w.error==='Omission').length;
-  const spokenCount=Math.max(0,refWordCount-omissionCount);
-  const coverage=spokenCount/refWordCount; // 0.0 – 1.0
+  const coverage=matchedCount/refWordCount;
 
-  // ── quality score over what was actually said ──
-  // Completeness excluded — coverage already captures the missing-word dimension.
+  // build enriched wordData for renderScored:
+  // — matched ref tokens get the rec word's score/error
+  // — unmatched ref tokens get error='Missed' (our own label, not Azure's)
+  // — insertion words are appended at the end (won't appear in ref text rendering)
+  const wordData=refMatch.map((m,i)=>{
+    if(m!==null) return {word:refTokens[i], score:m.score, error:m.error};
+    return {word:refTokens[i], score:0, error:'Missed'};
+  });
+  // append insertions so spokenSet is correct for mask evaluation
+  allWords.filter(w=>w.error==='Insertion').forEach(w=>wordData.push(w));
+
+  // ── quality score over what was said ──
   const quality=Math.round(acc*0.50+flu*0.35+pro*0.15);
-
-  // ── overall = quality gated by coverage ──
-  // Speak 50% of words → max score is 50, regardless of pronunciation quality.
   const overall=Math.round(quality*coverage);
 
   console.log('[PA] acc='+acc+' flu='+flu+' com='+com+' pro='+pro+
-    ' | coverage='+coverage.toFixed(2)+' quality='+quality+' overall='+overall);
+    ' | matched='+matchedCount+'/'+refWordCount+
+    ' coverage='+coverage.toFixed(2)+' quality='+quality+' overall='+overall);
 
   const grade      =overall>=90?'A':overall>=75?'B':overall>=60?'C':'D';
   const gradeColor ={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];

@@ -489,7 +489,7 @@ async function toggleRec(){if(isRec)stopRec();else await startRec();}
 async function startRec(){
   if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
   try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:'7c682927d91d8bccf9a887354027ac8f6d3a1a82d7d90ec8dc99f2ead3882a50'}}});
     audioChunks=[];
     const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
     mediaRec=new MediaRecorder(micStream,{mimeType:mime});

@@ -227,7 +227,7 @@ body{display:flex;flex-direction:column;}
 'use strict';
 let cards=[], cur=null, origText='';
 let selS=0, selE=0;
-let isRec=false, audioCtx=null, processor=null, micStream=null, pcmChunks=[];
+let isRec=false, micStream=null;
 let drillN=0, bestScores={}, lastScore=null;
 let azKey='', azRegion='';
 
@@ -483,19 +483,24 @@ document.addEventListener('click',e=>{
   if(pop.style.display==='flex'&&!pop.contains(e.target)&&!ca.contains(e.target))hidePop();
 });
 
-// ── PCM recording → WAV ──
-const SR=16000;
+// ── MediaRecorder → webm → Azure ──
+let mediaRec=null, audioChunks=[];
 async function toggleRec(){if(isRec)stopRec();else await startRec();}
 async function startRec(){
   if(!azKey||!azRegion){alert('请先配置 Azure Speech API Key 和 Region');return;}
   try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:SR,channelCount:1,echoCancellation:true,noiseSuppression:true}});
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:SR});
-    const src=audioCtx.createMediaStreamSource(micStream);
-    processor=audioCtx.createScriptProcessor(4096,1,1);
-    pcmChunks=[];
-    processor.onaudioprocess=e=>{if(isRec)pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));};
-    src.connect(processor);processor.connect(audioCtx.destination);
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    audioChunks=[];
+    const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+    mediaRec=new MediaRecorder(micStream,{mimeType:mime});
+    mediaRec.ondataavailable=e=>{if(e.data&&e.data.size>0)audioChunks.push(e.data);};
+    mediaRec.onstop=()=>{
+      micStream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(audioChunks,{type:mime});
+      console.log('Audio blob:',blob.size,'bytes',mime);
+      sendToAzure(blob,mime);
+    };
+    mediaRec.start(100);
     isRec=true;
     const m=document.getElementById('micBtn');
     m.classList.add('on');m.innerHTML='⏹';
@@ -506,36 +511,17 @@ async function startRec(){
   }catch(e){alert('无法访问麦克风: '+e.message);}
 }
 function stopRec(){
-  if(!isRec)return;
+  if(!isRec||!mediaRec)return;
   isRec=false;
-  if(processor){processor.disconnect();processor=null;}
-  if(audioCtx){audioCtx.close();audioCtx=null;}
-  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
+  mediaRec.stop();
   const m=document.getElementById('micBtn');
   m.classList.remove('on');m.innerHTML='🎙';
   document.getElementById('micLbl').textContent='点击录音';
   document.getElementById('sMic').textContent='处理中...';
-  sendToAzure(buildWAV(pcmChunks,SR));
-}
-function buildWAV(chunks,sr){
-  const total=chunks.reduce((s,c)=>s+c.length,0);
-  const merged=new Float32Array(total);
-  let off=0;for(const c of chunks){merged.set(c,off);off+=c.length;}
-  const pcm16=new Int16Array(total);
-  for(let i=0;i<total;i++){const s=Math.max(-1,Math.min(1,merged[i]));pcm16[i]=s<0?s*0x8000:s*0x7FFF;}
-  const buf=new ArrayBuffer(44+pcm16.byteLength);
-  const v=new DataView(buf);
-  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
-  ws(0,'RIFF');v.setUint32(4,36+pcm16.byteLength,true);ws(8,'WAVE');
-  ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
-  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
-  ws(36,'data');v.setUint32(40,pcm16.byteLength,true);
-  new Int16Array(buf,44).set(pcm16);
-  return new Blob([buf],{type:'audio/wav'});
 }
 
 // ── Azure Pronunciation Assessment ──
-async function sendToAzure(wav){
+async function sendToAzure(wav, mime){
   if(!cur)return;
   const refText=origText.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
   const paCfg={ReferenceText:refText,GradingSystem:'HundredMark',Dimension:'Comprehensive',EnableMiscue:true,EnableProsodyAssessment:true};
@@ -546,7 +532,7 @@ async function sendToAzure(wav){
   try{
     const res=await fetch(ep,{method:'POST',headers:{
       'Ocp-Apim-Subscription-Key':azKey,
-      'Content-Type':'audio/wav',
+      'Content-Type':mime||'audio/webm;codecs=opus',
       'Pronunciation-Assessment':b64,
       'Accept':'application/json'
     },body:wav});

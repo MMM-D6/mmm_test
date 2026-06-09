@@ -40,7 +40,6 @@ body{display:flex;flex-direction:column;}
 #recBtn:hover{background:var(--light);}
 #recBtn.on{background:#cc0000;border-color:#fff #600 #600 #fff;}
 #transInfo{display:flex;flex-direction:column;gap:3px;flex:1;}
-#transLabel{font-size:11px;font-weight:bold;color:var(--blue);}
 #scoreRow{display:flex;align-items:center;gap:8px;font-size:12px;}
 #covBar{flex:1;height:10px;background:#fff;border:2px inset var(--dk);}
 #covFill{height:100%;background:var(--blue);width:0%;transition:width .4s;}
@@ -84,9 +83,10 @@ body{display:flex;flex-direction:column;}
   </div>
   <div id="main">
     <div id="toolbar">
-      <span style="font-size:11px;font-weight:bold;color:var(--blue);">划词遮蔽:</span>
-      <button class="btn" id="maskBtn" onclick="applyMask()" disabled>▓ 遮蔽</button>
+      <span style="font-size:11px;font-weight:bold;color:var(--blue);">遮蔽:</span>
+      <button class="btn" id="maskBtn" onclick="applyMask()" disabled>▓ 划选</button>
       <button class="btn" id="umBtn" onclick="clearMask()" disabled style="color:#cc0000;">✕ 取消</button>
+      <button class="btn" onclick="maskAll()">▓ 全遮蔽</button>
       <button class="btn" onclick="resetView()">↺ 重置</button>
       <div id="legendRow" style="display:none;margin-left:6px;" class="legend">
         <span><span class="ldot" style="background:#cce0ff;border:1px solid #003380;"></span>说了</span>
@@ -103,7 +103,7 @@ body{display:flex;flex-direction:column;}
           <div id="recBtn" onclick="toggleRec()">🎙</div>
           <div id="transInfo">
             <div style="display:flex;align-items:center;gap:8px;">
-              <span id="transLabel">点击麦克风开始</span>
+              <span id="transLabel" style="font-size:11px;font-weight:bold;color:var(--blue);">点击麦克风开始</span>
               <span id="recStatus" style="font-size:11px;color:#cc0000;"></span>
             </div>
             <div id="scoreRow">
@@ -138,6 +138,7 @@ let selS=0,selE=0;
 let drillN=0,bestScores={},lastScore=null;
 let isRec=false,recog=null,fullTranscript='';
 
+// ── file loading ──
 const dz=document.getElementById('dropzone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
@@ -198,6 +199,7 @@ function loadCard(){
   document.getElementById('transcript').classList.remove('listening');
 }
 
+// ── rendering ──
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function renderPlain(){
@@ -221,9 +223,75 @@ function renderPlain(){
   document.getElementById('cardArea').innerHTML=html;
 }
 
-function renderScored(spokenSet){
-  if(!cur)return;
+// ── scoring: sequential alignment ──
+// spoken words are matched against ref tokens IN ORDER.
+// once we advance past a ref token (matched or skipped), we don't go back.
+// This means saying words from the end of the text won't count
+// if you haven't covered the earlier part.
+function scoreAndRender(transcript){
+  // tokenise transcript into ordered word list
+  const spokenWords=transcript.toLowerCase()
+    .replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0);
+
+  // tokenise reference text into ordered list, keeping char positions
   const text=origText;
+  const refTokens=[];
+  const re=/[a-zA-Z']+/g;
+  let m;
+  while((m=re.exec(text))!==null){
+    refTokens.push({norm:m[0].toLowerCase(),start:m.index,end:m.index+m[0].length});
+  }
+
+  // sequential alignment with a small lookahead window:
+  // for each ref token, look for it within the next WINDOW spoken words.
+  // if found, mark as said and advance both pointers.
+  // if not found, mark as missed and advance only ref pointer.
+  const WINDOW=4;
+  const result=new Array(refTokens.length).fill(false); // true=said
+  let si=0; // pointer into spokenWords
+  for(let ri=0;ri<refTokens.length;ri++){
+    const rn=refTokens[ri].norm;
+    let found=-1;
+    for(let w=si;w<Math.min(si+WINDOW,spokenWords.length);w++){
+      if(spokenWords[w]===rn){found=w;break;}
+    }
+    if(found>=0){result[ri]=true;si=found+1;}
+  }
+
+  const matched=result.filter(Boolean).length;
+  const total=refTokens.length||1;
+  const pct=Math.round(matched/total*100);
+
+  // update score UI
+  const color=pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
+  document.getElementById('covFill').style.width=pct+'%';
+  document.getElementById('covFill').style.background=color;
+  document.getElementById('covPct').textContent=pct+'%';
+  document.getElementById('covPct').style.color=color;
+  const grade=pct>=90?'A':pct>=75?'B':pct>=60?'C':'D';
+  const gc={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  document.getElementById('gradeBox').textContent=grade;
+  document.getElementById('gradeBox').style.color=gc;
+  drillN++;
+  document.getElementById('sDrill').textContent='次数: '+drillN;
+  const prev=bestScores[cur.id];
+  if(prev==null||pct>prev){
+    bestScores[cur.id]=pct;
+    document.getElementById('sBest').textContent='最高: '+pct+'%';
+    document.getElementById('histSpan').textContent=prev!=null?'🌟 新高！':'';
+  }else{
+    document.getElementById('histSpan').textContent=pct>=75?'💪':'加油！';
+  }
+  lastScore=pct;
+
+  // build charResult map: charIndex → said|missed
+  const charResult={};
+  refTokens.forEach((tok,i)=>{
+    const cls=result[i]?'said':'missed';
+    for(let p=tok.start;p<tok.end;p++)charResult[p]=cls;
+  });
+
+  // render text with coloring
   let html='',pos=0;
   while(pos<text.length){
     const ch=text[pos];
@@ -232,9 +300,10 @@ function renderScored(spokenSet){
     let end=pos;
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
     const token=text.slice(pos,end);
-    const norm=token.toLowerCase().replace(/[^a-z']/g,'');
-    const cls=(norm.length>0&&spokenSet.has(norm))?'said':'missed';
-    html+='<span class="w '+cls+'">'+esc(token)+'</span>';
+    // find first char of this token that has a result
+    let cls=null;
+    for(let p=pos;p<end&&!cls;p++)cls=charResult[p]||null;
+    html+=cls?'<span class="w '+cls+'">'+esc(token)+'</span>':esc(token);
     pos=end;
   }
   document.getElementById('cardArea').innerHTML=html;
@@ -254,6 +323,7 @@ function clickMk(i){
   else{el.className='mk vis';el.textContent=chunk;}
 }
 
+// ── selection / masks ──
 function onSel(){
   if(!cur)return;
   setTimeout(()=>{
@@ -290,6 +360,18 @@ function clearMask(){
   hidePop();setMBtn(false);renderPlain();
   document.getElementById('sMask').textContent='遮蔽: '+cur.masks.length;
 }
+function maskAll(){
+  if(!cur)return;
+  const masks=[];
+  const re=/[a-zA-Z0-9'\u00C0-\u024F]+/g;
+  let m;
+  while((m=re.exec(origText))!==null){
+    masks.push({start:m.index,end:m.index+m[0].length});
+  }
+  cur.masks=masks;
+  renderPlain();
+  document.getElementById('sMask').textContent='遮蔽: '+cur.masks.length;
+}
 document.addEventListener('click',e=>{
   const pop=document.getElementById('pop'),ca=document.getElementById('cardArea');
   if(pop.style.display==='flex'&&!pop.contains(e.target)&&!ca.contains(e.target))hidePop();
@@ -301,7 +383,7 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 function toggleRec(){if(isRec)stopRec();else startRec();}
 
 function startRec(){
-  if(!SR){alert('请使用 Chrome 或 Edge 浏览器（需支持 Web Speech API）');return;}
+  if(!SR){alert('请使用 Chrome 或 Edge 浏览器');return;}
   if(isRec)return;
   isRec=true;fullTranscript='';
   document.getElementById('transcript').textContent='';
@@ -333,10 +415,7 @@ function buildAndStart(){
     if(e.error==='aborted'||e.error==='not-allowed')return;
     console.warn('SR error:',e.error);
   };
-  recog.onend=()=>{
-    // restart automatically unless user pressed stop
-    if(isRec)buildAndStart();
-  };
+  recog.onend=()=>{if(isRec)buildAndStart();};
   recog.start();
 }
 
@@ -351,38 +430,6 @@ function stopRec(){
   document.getElementById('transcript').classList.remove('listening');
   const t=fullTranscript.trim();
   if(t)scoreAndRender(t);
-}
-
-function scoreAndRender(transcript){
-  const spokenSet=new Set(
-    transcript.toLowerCase().replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0)
-  );
-  const refTokens=origText.replace(/\n/g,' ').trim().split(/\s+/).filter(w=>w.length>0);
-  const refNorms=refTokens.map(t=>t.toLowerCase().replace(/[^a-z']/g,''));
-  const total=refNorms.filter(n=>n.length>0).length||1;
-  const matched=refNorms.filter(n=>n.length>0&&spokenSet.has(n)).length;
-  const pct=Math.round(matched/total*100);
-  const color=pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
-  document.getElementById('covFill').style.width=pct+'%';
-  document.getElementById('covFill').style.background=color;
-  document.getElementById('covPct').textContent=pct+'%';
-  document.getElementById('covPct').style.color=color;
-  const grade=pct>=90?'A':pct>=75?'B':pct>=60?'C':'D';
-  const gc={A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
-  document.getElementById('gradeBox').textContent=grade;
-  document.getElementById('gradeBox').style.color=gc;
-  drillN++;
-  document.getElementById('sDrill').textContent='次数: '+drillN;
-  const prev=bestScores[cur.id];
-  if(prev==null||pct>prev){
-    bestScores[cur.id]=pct;
-    document.getElementById('sBest').textContent='最高: '+pct+'%';
-    document.getElementById('histSpan').textContent=prev!=null?'🌟 新高！':'';
-  }else{
-    document.getElementById('histSpan').textContent=pct>=75?'💪':'加油！';
-  }
-  lastScore=pct;
-  renderScored(spokenSet);
 }
 
 function resetScore(){

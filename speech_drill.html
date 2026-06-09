@@ -223,17 +223,14 @@ function renderPlain(){
   document.getElementById('cardArea').innerHTML=html;
 }
 
-// ── scoring: sequential alignment ──
-// spoken words are matched against ref tokens IN ORDER.
-// once we advance past a ref token (matched or skipped), we don't go back.
-// This means saying words from the end of the text won't count
-// if you haven't covered the earlier part.
+// ── scoring: LCS alignment ──
+// Uses longest-common-subsequence to find which ref tokens were said,
+// preserving order. One misrecognised word won't block everything after it.
 function scoreAndRender(transcript){
-  // tokenise transcript into ordered word list
   const spokenWords=transcript.toLowerCase()
     .replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0);
 
-  // tokenise reference text into ordered list, keeping char positions
+  // tokenise reference text keeping char positions
   const text=origText;
   const refTokens=[];
   const re=/[a-zA-Z']+/g;
@@ -242,25 +239,37 @@ function scoreAndRender(transcript){
     refTokens.push({norm:m[0].toLowerCase(),start:m.index,end:m.index+m[0].length});
   }
 
-  // sequential alignment with a small lookahead window:
-  // for each ref token, look for it within the next WINDOW spoken words.
-  // if found, mark as said and advance both pointers.
-  // if not found, mark as missed and advance only ref pointer.
-  const WINDOW=4;
-  const result=new Array(refTokens.length).fill(false); // true=said
-  let si=0; // pointer into spokenWords
-  for(let ri=0;ri<refTokens.length;ri++){
-    const rn=refTokens[ri].norm;
-    let found=-1;
-    for(let w=si;w<Math.min(si+WINDOW,spokenWords.length);w++){
-      if(spokenWords[w]===rn){found=w;break;}
+  const R=refTokens.length, S=spokenWords.length;
+
+  // LCS DP — find which ref tokens appear in spoken words in order
+  // dp[i][j] = length of LCS for refTokens[0..i-1], spokenWords[0..j-1]
+  // We use a space-efficient rolling array since R and S can be ~100-200 words
+  const dp=Array.from({length:R+1},()=>new Uint16Array(S+1));
+  for(let i=1;i<=R;i++){
+    for(let j=1;j<=S;j++){
+      if(refTokens[i-1].norm===spokenWords[j-1])
+        dp[i][j]=dp[i-1][j-1]+1;
+      else
+        dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
     }
-    if(found>=0){result[ri]=true;si=found+1;}
   }
 
-  const matched=result.filter(Boolean).length;
-  const total=refTokens.length||1;
-  const pct=Math.round(matched/total*100);
+  // backtrack to find which ref indices are matched
+  const matched=new Uint8Array(R);
+  let i=R,j=S;
+  while(i>0&&j>0){
+    if(refTokens[i-1].norm===spokenWords[j-1]){
+      matched[i-1]=1;i--;j--;
+    }else if(dp[i-1][j]>=dp[i][j-1]){
+      i--;
+    }else{
+      j--;
+    }
+  }
+
+  const matchedCount=matched.reduce((a,b)=>a+b,0);
+  const total=R||1;
+  const pct=Math.round(matchedCount/total*100);
 
   // update score UI
   const color=pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
@@ -284,14 +293,14 @@ function scoreAndRender(transcript){
   }
   lastScore=pct;
 
-  // build charResult map: charIndex → said|missed
+  // build char→class map
   const charResult={};
-  refTokens.forEach((tok,i)=>{
-    const cls=result[i]?'said':'missed';
+  refTokens.forEach((tok,idx)=>{
+    const cls=matched[idx]?'said':'missed';
     for(let p=tok.start;p<tok.end;p++)charResult[p]=cls;
   });
 
-  // render text with coloring
+  // render
   let html='',pos=0;
   while(pos<text.length){
     const ch=text[pos];
@@ -300,7 +309,6 @@ function scoreAndRender(transcript){
     let end=pos;
     while(end<text.length&&text[end]!==' '&&text[end]!=='\n')end++;
     const token=text.slice(pos,end);
-    // find first char of this token that has a result
     let cls=null;
     for(let p=pos;p<end&&!cls;p++)cls=charResult[p]||null;
     html+=cls?'<span class="w '+cls+'">'+esc(token)+'</span>':esc(token);

@@ -223,14 +223,30 @@ function renderPlain(){
   document.getElementById('cardArea').innerHTML=html;
 }
 
-// ── scoring: LCS alignment ──
-// Uses longest-common-subsequence to find which ref tokens were said,
-// preserving order. One misrecognised word won't block everything after it.
+// ── scoring: LCS with fuzzy matching ──
+// Two words match if: identical, one contains the other, or edit distance <= 2
+function wordsMatch(a,b){
+  if(a===b)return true;
+  if(a.length>=4&&b.length>=4&&(a.includes(b)||b.includes(a)))return true;
+  const la=a.length,lb=b.length;
+  if(Math.abs(la-lb)>2||Math.min(la,lb)<4)return false;
+  const prev=new Uint8Array(lb+1);
+  const curr=new Uint8Array(lb+1);
+  for(let j=0;j<=lb;j++)prev[j]=j;
+  for(let i=1;i<=la;i++){
+    curr[0]=i;
+    for(let j=1;j<=lb;j++){
+      curr[j]=a[i-1]===b[j-1]?prev[j-1]:1+Math.min(prev[j-1],prev[j],curr[j-1]);
+    }
+    prev.set(curr);
+  }
+  return prev[lb]<=2;
+}
+
 function scoreAndRender(transcript){
   const spokenWords=transcript.toLowerCase()
     .replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0);
 
-  // tokenise reference text keeping char positions
   const text=origText;
   const refTokens=[];
   const re=/[a-zA-Z']+/g;
@@ -239,26 +255,26 @@ function scoreAndRender(transcript){
     refTokens.push({norm:m[0].toLowerCase(),start:m.index,end:m.index+m[0].length});
   }
 
+  document.getElementById('transcript').textContent=
+    transcript+'\n\n[识别到 '+spokenWords.length+' 词 / 原文 '+refTokens.length+' 词]';
+
   const R=refTokens.length, S=spokenWords.length;
 
-  // LCS DP — find which ref tokens appear in spoken words in order
-  // dp[i][j] = length of LCS for refTokens[0..i-1], spokenWords[0..j-1]
-  // We use a space-efficient rolling array since R and S can be ~100-200 words
+  // LCS DP with fuzzy word matching
   const dp=Array.from({length:R+1},()=>new Uint16Array(S+1));
   for(let i=1;i<=R;i++){
     for(let j=1;j<=S;j++){
-      if(refTokens[i-1].norm===spokenWords[j-1])
+      if(wordsMatch(refTokens[i-1].norm,spokenWords[j-1]))
         dp[i][j]=dp[i-1][j-1]+1;
       else
         dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
     }
   }
 
-  // backtrack to find which ref indices are matched
   const matched=new Uint8Array(R);
   let i=R,j=S;
   while(i>0&&j>0){
-    if(refTokens[i-1].norm===spokenWords[j-1]){
+    if(wordsMatch(refTokens[i-1].norm,spokenWords[j-1])){
       matched[i-1]=1;i--;j--;
     }else if(dp[i-1][j]>=dp[i][j-1]){
       i--;
@@ -271,7 +287,6 @@ function scoreAndRender(transcript){
   const total=R||1;
   const pct=Math.round(matchedCount/total*100);
 
-  // update score UI
   const color=pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
   document.getElementById('covFill').style.width=pct+'%';
   document.getElementById('covFill').style.background=color;
@@ -293,14 +308,12 @@ function scoreAndRender(transcript){
   }
   lastScore=pct;
 
-  // build char→class map
   const charResult={};
   refTokens.forEach((tok,idx)=>{
     const cls=matched[idx]?'said':'missed';
     for(let p=tok.start;p<tok.end;p++)charResult[p]=cls;
   });
 
-  // render
   let html='',pos=0;
   while(pos<text.length){
     const ch=text[pos];

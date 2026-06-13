@@ -945,6 +945,8 @@ body{
     <div class="section" id="sec-notes">
       <div class="toolbar">
         <button class="pxl-btn primary" onclick="newCard()">🃏 + 新建卡片</button>
+        <button class="pxl-btn" style="background:#e8f0ff;border-color:#000080;color:#000080;" onclick="openBulkImportModal()">📥 批量导入</button>
+        <button class="pxl-btn" style="background:#fff0e8;border-color:#804000;color:#804000;" onclick="openDedupModal()">🔍 查重合并</button>
         <input class="search-bar" id="cardSearch" placeholder="搜索内容/标签..." oninput="renderCards()"/>
         <button class="pxl-btn" onclick="exportCards()">📄 导出</button>
       </div>
@@ -3079,6 +3081,329 @@ function exportCards(){
 
 
 
+// ============================================================
+// BULK IMPORT
+// ============================================================
+var _bulkParsed = [];
+
+function openBulkImportModal(){
+  document.getElementById('bulkImportText').value = '';
+  document.getElementById('bulkImportPreview').style.display = 'none';
+  document.getElementById('bulkImportConfirmBtn').style.display = 'none';
+  document.getElementById('bulkImportStatus').textContent = '';
+  _bulkParsed = [];
+  openModal('bulkImportModal');
+  setTimeout(()=>document.getElementById('bulkImportText').focus(), 100);
+}
+
+function parseBulkImportText(raw){
+  const blocks = raw.split(/\n---+\n/).map(b=>b.trim()).filter(Boolean);
+  const results = [];
+  blocks.forEach(function(block){
+    const lines = block.split('\n');
+    const card = { type:'quote', quote:'', body:'', tags:[] };
+    let currentKey = null;
+    let buffer = [];
+    function flush(){
+      if(!currentKey) return;
+      const val = buffer.join('\n').trim();
+      if(currentKey==='type') card.type = val.toLowerCase().includes('idea')?'idea':'quote';
+      else if(currentKey==='quote') card.quote = val;
+      else if(currentKey==='body') card.body = val;
+      else if(currentKey==='tags') card.tags = val.split(',').map(s=>s.trim()).filter(Boolean);
+      buffer = [];
+      currentKey = null;
+    }
+    lines.forEach(function(line){
+      const m = line.match(/^(TYPE|QUOTE|BODY|TAGS)\s*[:：]\s*/i);
+      if(m){
+        flush();
+        currentKey = m[1].toUpperCase();
+        buffer.push(line.slice(m[0].length));
+      } else {
+        buffer.push(line);
+      }
+    });
+    flush();
+    // fallback: no structured keys found, treat whole block as quote
+    if(!card.quote && !card.body){
+      card.quote = block;
+      card.type = 'quote';
+    }
+    if(card.quote || card.body) results.push(card);
+  });
+  return results;
+}
+
+function previewBulkImport(){
+  const raw = document.getElementById('bulkImportText').value.trim();
+  if(!raw){ document.getElementById('bulkImportStatus').textContent='请先粘贴卡片内容'; return; }
+  _bulkParsed = parseBulkImportText(raw);
+  const previewEl = document.getElementById('bulkImportPreview');
+  const listEl = document.getElementById('bulkImportPreviewList');
+  const titleEl = document.getElementById('bulkImportPreviewTitle');
+  if(!_bulkParsed.length){
+    document.getElementById('bulkImportStatus').textContent = '未解析到有效卡片，请检查格式';
+    previewEl.style.display = 'none';
+    document.getElementById('bulkImportConfirmBtn').style.display = 'none';
+    return;
+  }
+  titleEl.textContent = '解析到 '+_bulkParsed.length+' 张卡片：';
+  listEl.innerHTML = _bulkParsed.map(function(c,i){
+    const typeLabel = c.type==='quote'?'<span style="color:#000080;font-weight:bold;">QUOTE</span>':'<span style="color:#800080;font-weight:bold;">IDEA</span>';
+    const excerpt = (c.quote||c.body||'').replace(/</g,'&lt;').slice(0,80);
+    const tags = c.tags.length ? '<span style="color:#808080;"> ['+c.tags.join(', ')+']</span>' : '';
+    return '<div style="padding:3px 0;border-bottom:1px solid #e0e0e0;">'+(i+1)+'. '+typeLabel+' '+excerpt+(excerpt.length>=80?'...':'')+tags+'</div>';
+  }).join('');
+  previewEl.style.display = 'block';
+  document.getElementById('bulkImportConfirmBtn').style.display = 'inline-block';
+  document.getElementById('bulkImportStatus').textContent = '';
+}
+
+function confirmBulkImport(){
+  if(!_bulkParsed.length) return;
+  const now = new Date().toISOString();
+  let added = 0;
+  _bulkParsed.forEach(function(c){
+    S.cards.unshift({
+      id: S.nextId++,
+      type: c.type,
+      quote: c.quote,
+      body: c.body,
+      tags: c.tags,
+      links: [],
+      threadId: null,
+      createdAt: now
+    });
+    added++;
+  });
+  addXP(added * 5, '批量导入卡片');
+  saveState();
+  renderCards();
+  closeModal('bulkImportModal');
+  showToast('已导入 '+added+' 张卡片 +' + (added*5) + 'XP');
+}
+
+// ============================================================
+// DEDUP (duplicate detection and merge)
+// ============================================================
+var _dedupPairs = [];
+var _dedupMergeSet = new Set();
+var _dedupType = 'quote';
+
+function setDedupType(type){
+  _dedupType = type;
+  var qBtn = document.getElementById('dedupTypeQuote');
+  var iBtn = document.getElementById('dedupTypeIdea');
+  if(type === 'quote'){
+    qBtn.style.background = '#000080'; qBtn.style.color = '#fff'; qBtn.style.borderColor = '#000060';
+    iBtn.style.background = 'var(--win-gray)'; iBtn.style.color = '#000'; iBtn.style.borderColor = '';
+  } else {
+    iBtn.style.background = '#800080'; iBtn.style.color = '#fff'; iBtn.style.borderColor = '#600060';
+    qBtn.style.background = 'var(--win-gray)'; qBtn.style.color = '#000'; qBtn.style.borderColor = '';
+  }
+  _dedupPairs = [];
+  _dedupMergeSet = new Set();
+  document.getElementById('dedupPairList').innerHTML = '<div style="color:#808080;font-size:13px;padding:20px 0;text-align:center;">点击「扫描卡片」</div>';
+  document.getElementById('dedupScanStatus').textContent = '';
+  document.getElementById('dedupMergeAllBtn').style.display = 'none';
+  document.getElementById('dedupActionStatus').textContent = '';
+}
+
+var _dedupStopwords = new Set('的了是在和有我你他她它们这那就都也很还有个为以及与而但如果因为所以虽然虽但却只不没什么怎么这样那样一个一种一些'.split(''));
+
+function cardTextForSim(c){
+  var raw = ((c.quote||'') + ' ' + (c.body||'')).replace(/\s+/g,'').toLowerCase();
+  // remove stopword characters
+  var filtered = '';
+  for(var i=0;i<raw.length;i++){
+    if(!_dedupStopwords.has(raw[i])) filtered += raw[i];
+  }
+  return filtered;
+}
+
+function getBigrams(str){
+  var s = new Set();
+  for(var i=0;i<str.length-1;i++) s.add(str.slice(i,i+2));
+  return s;
+}
+
+function tokenSimilarity(a, b){
+  if(!a && !b) return 1;
+  if(!a || !b) return 0;
+  var bA = getBigrams(a);
+  var bB = getBigrams(b);
+  if(!bA.size && !bB.size) return 1;
+  var inter = 0;
+  bA.forEach(function(g){ if(bB.has(g)) inter++; });
+  var union = bA.size + bB.size - inter;
+  return union ? inter/union : 0;
+}
+
+function openDedupModal(){
+  _dedupPairs = [];
+  _dedupMergeSet = new Set();
+  _dedupType = 'quote';
+  document.getElementById('dedupPairList').innerHTML = '<div style="color:#808080;font-size:13px;padding:20px 0;text-align:center;">选择扫描范围后点击「扫描卡片」</div>';
+  document.getElementById('dedupScanStatus').textContent = '';
+  document.getElementById('dedupMergeAllBtn').style.display = 'none';
+  document.getElementById('dedupActionStatus').textContent = '';
+  var qBtn = document.getElementById('dedupTypeQuote');
+  var iBtn = document.getElementById('dedupTypeIdea');
+  if(qBtn){ qBtn.style.background='#000080'; qBtn.style.color='#fff'; qBtn.style.borderColor='#000060'; }
+  if(iBtn){ iBtn.style.background='var(--win-gray)'; iBtn.style.color='#000'; iBtn.style.borderColor=''; }
+  openModal('dedupModal');
+}
+
+function runDedup(){
+  const threshold = parseInt(document.getElementById('dedupThreshold').value) / 100;
+  const cards = (S.cards||[]).filter(c=>!c.threadId && c.type === _dedupType);
+  _dedupPairs = [];
+  _dedupMergeSet = new Set();
+  for(let i=0;i<cards.length;i++){
+    for(let j=i+1;j<cards.length;j++){
+      const sim = tokenSimilarity(cardTextForSim(cards[i]), cardTextForSim(cards[j]));
+      if(sim >= threshold){
+        _dedupPairs.push({ a: cards[i], b: cards[j], sim: Math.round(sim*100) });
+      }
+    }
+  }
+  const statusEl = document.getElementById('dedupScanStatus');
+  const listEl = document.getElementById('dedupPairList');
+  if(!_dedupPairs.length){
+    statusEl.textContent = (_dedupType==='quote'?'QUOTE':'IDEA') + ' 中未发现重复卡片';
+    listEl.innerHTML = '<div style="color:#808080;font-size:13px;padding:20px 0;text-align:center;">🎉 没有发现高度重合的卡片</div>';
+    document.getElementById('dedupMergeAllBtn').style.display = 'none';
+    return;
+  }
+  statusEl.textContent = (_dedupType==='quote'?'QUOTE':'IDEA') + ' 中发现 '+_dedupPairs.length+' 对相似卡片';
+  renderDedupPairs();
+  document.getElementById('dedupMergeAllBtn').style.display = 'inline-block';
+}
+
+function renderDedupPairs(){
+  const listEl = document.getElementById('dedupPairList');
+  listEl.innerHTML = '';
+  _dedupPairs.forEach(function(pair, idx){
+    const pairKey = pair.a.id + '_' + pair.b.id;
+    const merged = _dedupMergeSet.has(pairKey);
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'border:2px solid;border-color:'+(merged?'#00aa00':'#c0c0c0')+';background:'+(merged?'#f0fff0':'#fff')+';padding:10px 12px;';
+    wrapper.id = 'dedup-pair-'+idx;
+
+    const simBar = '<span style="font-family:monospace;font-size:11px;font-weight:bold;background:'+(pair.sim>=80?'#e94560':pair.sim>=65?'#e07020':'#a06000')+';color:#fff;padding:1px 6px;">'+pair.sim+'% 相似</span>';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    header.innerHTML = simBar + '<span style="font-size:12px;color:#808080;">卡片对 #'+(idx+1)+'</span>' + (merged?'<span style="font-size:11px;color:#00aa00;margin-left:auto;">✓ 已合并</span>':'');
+    wrapper.appendChild(header);
+
+    function cardPreviewHtml(c){
+      const typeLabel = c.type==='quote'?'QUOTE':'IDEA';
+      const typeColor = c.type==='quote'?'#000080':'#800080';
+      let html = '<div style="font-size:10px;font-weight:bold;color:'+typeColor+';margin-bottom:4px;">'+typeLabel+'</div>';
+      if(c.quote) html += '<div style="font-style:italic;font-size:12px;color:#000;border-left:3px solid '+typeColor+';padding-left:6px;margin-bottom:4px;line-height:1.6;white-space:pre-wrap;">'+c.quote.slice(0,200).replace(/</g,'&lt;')+(c.quote.length>200?'...':'')+'</div>';
+      if(c.body) html += '<div style="font-size:12px;color:#444;line-height:1.6;white-space:pre-wrap;">'+c.body.slice(0,150).replace(/</g,'&lt;')+(c.body.length>150?'...':'')+'</div>';
+      if((c.tags||[]).length) html += '<div style="margin-top:4px;">'+c.tags.map(t=>'<span style="font-size:10px;background:'+typeColor+';color:#fff;padding:1px 5px;margin-right:3px;">'+t.replace(/</g,'&lt;')+'</span>').join('')+'</div>';
+      return html;
+    }
+
+    const cols = document.createElement('div');
+    cols.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;';
+    const colA = document.createElement('div');
+    colA.style.cssText = 'border:1px solid #d0d0d0;padding:8px;background:#f8f8ff;';
+    colA.innerHTML = cardPreviewHtml(pair.a);
+    const colB = document.createElement('div');
+    colB.style.cssText = 'border:1px solid #d0d0d0;padding:8px;background:#fff8f8;';
+    colB.innerHTML = cardPreviewHtml(pair.b);
+    cols.appendChild(colA);
+    cols.appendChild(colB);
+    wrapper.appendChild(cols);
+
+    if(!merged){
+      const btns = document.createElement('div');
+      btns.style.cssText = 'display:flex;gap:8px;';
+      const mergeBtn = document.createElement('button');
+      mergeBtn.className = 'pxl-btn primary';
+      mergeBtn.style.cssText = 'font-size:11px;';
+      mergeBtn.textContent = '⚡ 合并（保留并集）';
+      mergeBtn.onclick = (function(p, i){ return function(){ mergeDedupPair(p, i); }; })(pair, idx);
+      const skipBtn = document.createElement('button');
+      skipBtn.className = 'pxl-btn';
+      skipBtn.style.cssText = 'font-size:11px;';
+      skipBtn.textContent = '跳过';
+      skipBtn.onclick = (function(i){ return function(){
+        document.getElementById('dedup-pair-'+i).style.opacity='0.4';
+      }; })(idx);
+      btns.appendChild(mergeBtn);
+      btns.appendChild(skipBtn);
+      wrapper.appendChild(btns);
+    }
+
+    listEl.appendChild(wrapper);
+  });
+}
+
+function mergeDedupPair(pair, idx){
+  const a = S.cards.find(c=>c.id===pair.a.id);
+  const b = S.cards.find(c=>c.id===pair.b.id);
+  if(!a || !b){ showToast('卡片已不存在'); return; }
+
+  // Merge into a (union of content and tags)
+  const mergedQuote = [a.quote, b.quote].filter(Boolean).join('\n').trim();
+  const mergedBody = [a.body, b.body].filter(Boolean).join('\n\n').trim();
+  const mergedTags = Array.from(new Set([...(a.tags||[]), ...(b.tags||[])]));
+  const mergedLinks = Array.from(new Set([...(a.links||[]), ...(b.links||[])]).values()).filter(id=>id!==b.id&&id!==a.id);
+
+  a.quote = mergedQuote;
+  a.body = mergedBody;
+  a.tags = mergedTags;
+  a.links = mergedLinks;
+  a.editedAt = new Date().toISOString();
+
+  // Re-point any links or threads that referenced b to a
+  S.cards.forEach(function(c){
+    if(c.links) c.links = c.links.map(id=>id===b.id?a.id:id);
+    if(c.threadId===b.id) c.threadId = String(a.id);
+  });
+  S.cards = S.cards.filter(c=>c.id!==b.id);
+
+  // Update the in-memory pair refs so re-render is correct
+  _dedupMergeSet.add(pair.a.id + '_' + pair.b.id);
+  pair.a = a; // update ref
+
+  saveState();
+  renderCards();
+  document.getElementById('dedupActionStatus').textContent = '已合并并保留并集内容';
+
+  // refresh this pair's display
+  const pairEl = document.getElementById('dedup-pair-'+idx);
+  if(pairEl){
+    pairEl.style.borderColor = '#00aa00';
+    pairEl.style.background = '#f0fff0';
+    const mergedNote = document.createElement('div');
+    mergedNote.style.cssText = 'font-size:11px;color:#00aa00;margin-top:6px;';
+    mergedNote.textContent = '✓ 已合并，内容并集已保留在卡片 #'+a.id;
+    // remove merge/skip buttons
+    const btns = pairEl.querySelectorAll('.pxl-btn');
+    btns.forEach(b=>b.remove());
+    pairEl.appendChild(mergedNote);
+  }
+}
+
+function mergeAllDedupPairs(){
+  const remaining = _dedupPairs.filter(function(p){
+    return !_dedupMergeSet.has(p.a.id+'_'+p.b.id);
+  });
+  if(!remaining.length){ showToast('没有待合并的卡片对'); return; }
+  remaining.forEach(function(pair, i){
+    const idx = _dedupPairs.indexOf(pair);
+    mergeDedupPair(pair, idx);
+  });
+  document.getElementById('dedupActionStatus').textContent = '已合并全部 '+remaining.length+' 对';
+}
+
+// ============================================================
+
 var _expCardId=null;
 
 function openCardExportModal(cardId){
@@ -4412,6 +4737,67 @@ function doChangePassword(){
 </div>
 
 
+
+<!-- BULK IMPORT MODAL -->
+<div class="overlay" id="bulkImportModal">
+  <div class="modal" style="max-width:680px;max-height:92vh;display:flex;flex-direction:column;">
+    <button class="close-btn" onclick="closeModal('bulkImportModal')">✕</button>
+    <div class="modal-title">📥 批量导入卡片</div>
+    <div style="font-size:12px;color:#808080;margin-bottom:10px;line-height:1.7;">
+      将 Claude 整理好的卡片粘贴到下方。每张卡片用 <code style="background:#f0f0f0;padding:1px 4px;">---</code> 分隔，格式如下：
+      <br/>
+      <code style="background:#f0f0f0;display:block;padding:6px 8px;margin-top:6px;font-size:11px;white-space:pre;">TYPE: quote
+QUOTE: 引用原文
+BODY: 我的想法
+TAGS: 标签1, 标签2
+---
+TYPE: idea
+BODY: 想法内容
+TAGS: 标签</code>
+      <span style="color:#000080;">TYPE</span> 填 <code>quote</code> 或 <code>idea</code>，QUOTE/BODY/TAGS 均可省略。
+    </div>
+    <textarea id="bulkImportText" class="form-textarea" rows="12" placeholder="把 Claude 帮你整理的多张卡片粘贴到这里..." style="flex:1;min-height:200px;font-size:13px;line-height:1.7;resize:vertical;font-family:Courier New,monospace;"></textarea>
+    <div id="bulkImportPreview" style="margin-top:10px;display:none;">
+      <div style="font-size:12px;font-weight:bold;color:#000080;margin-bottom:6px;" id="bulkImportPreviewTitle"></div>
+      <div id="bulkImportPreviewList" style="max-height:180px;overflow-y:auto;border:1px solid #c0c0c0;padding:6px 8px;background:#fafafa;font-size:12px;line-height:1.8;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
+      <button class="pxl-btn" onclick="previewBulkImport()" style="background:#e8f0ff;border-color:#000080;color:#000080;">👁 预览解析</button>
+      <button class="pxl-btn primary" id="bulkImportConfirmBtn" onclick="confirmBulkImport()" style="display:none;">✅ 确认导入</button>
+      <span id="bulkImportStatus" style="font-size:12px;color:#808080;"></span>
+      <button class="pxl-btn" onclick="closeModal('bulkImportModal')" style="margin-left:auto;">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEDUP MODAL -->
+<div class="overlay" id="dedupModal">
+  <div class="modal" style="max-width:720px;max-height:93vh;display:flex;flex-direction:column;">
+    <button class="close-btn" onclick="closeModal('dedupModal')">✕</button>
+    <div class="modal-title">🔍 查重合并</div>
+    <div style="font-size:12px;color:#808080;margin-bottom:10px;line-height:1.6;">
+      对比内容高度重合的卡片，选择合并（保留两者内容的并集），或跳过保留原状。
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+      <label style="font-size:12px;color:#000;">扫描范围：</label>
+      <div style="display:flex;gap:0;">
+        <button id="dedupTypeQuote" class="pxl-btn" onclick="setDedupType('quote')" style="font-size:11px;border-right:none;background:#000080;color:#fff;border-color:#000060;">QUOTE</button>
+        <button id="dedupTypeIdea" class="pxl-btn" onclick="setDedupType('idea')" style="font-size:11px;background:var(--win-gray);color:#000;">IDEA</button>
+      </div>
+      <label style="font-size:12px;color:#000;margin-left:6px;">相似度阈值：</label>
+      <input type="range" id="dedupThreshold" min="30" max="90" value="65" style="width:120px;" oninput="document.getElementById('dedupThresholdVal').textContent=this.value+'%'"/>
+      <span id="dedupThresholdVal" style="font-size:12px;font-family:monospace;color:#000080;font-weight:bold;">65%</span>
+      <button class="pxl-btn" onclick="runDedup()" style="background:#fff0e8;border-color:#804000;color:#804000;">扫描卡片</button>
+      <span id="dedupScanStatus" style="font-size:12px;color:#808080;"></span>
+    </div>
+    <div id="dedupPairList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="pxl-btn primary" id="dedupMergeAllBtn" onclick="mergeAllDedupPairs()" style="display:none;">⚡ 全部合并选中</button>
+      <button class="pxl-btn" onclick="closeModal('dedupModal')">关闭</button>
+      <span id="dedupActionStatus" style="font-size:12px;color:#808080;margin-left:auto;"></span>
+    </div>
+  </div>
+</div>
 
 <!-- HIGHLIGHT TOOLBAR -->
 <div class="hl-toolbar" id="hlToolbar">

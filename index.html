@@ -627,8 +627,9 @@ body{
   white-space:pre-wrap;word-break:break-word;user-select:text;
   font-family:"Times New Roman","SimSun","宋体",serif;
 }
-.eng-mask{background:#a0a0a0;color:transparent;padding:0 1px;cursor:pointer;user-select:none;}
-.eng-mask-revealed{background:#d0d0ff;color:#000;}
+.eng-dialog-row{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;}
+.eng-dialog-tag{font-family:var(--font-pixel);font-size:6px;color:#fff;background:#555;padding:2px 5px;white-space:nowrap;flex-shrink:0;margin-top:3px;letter-spacing:.5px;}
+.eng-dialog-text{font-family:"Times New Roman","SimSun","宋体",serif;font-size:15px;line-height:1.7;color:#000;flex:1;}
 
 /* ══════════════════════════════════════
    CHECKIN
@@ -932,18 +933,11 @@ body{
       <div id="eng-app" style="max-width:820px;margin:0 auto;padding:16px;font-family:Arial,Helvetica,sans-serif;">
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
           <button class="pxl-btn primary" onclick="openEngCardModal()">📝 + 新建卡片</button>
-          <span style="font-size:12px;color:#808080;">划选文字可高亮、遮蔽或添加生词</span>
+          <button class="pxl-btn" onclick="document.getElementById('engImportInput').click()">📂 导入卡片</button>
+          <input type="file" id="engImportInput" accept=".json" style="display:none;" onchange="importEngCard(this)">
+          <span style="font-size:12px;color:#808080;">划选文字可高亮</span>
         </div>
         <div id="eng-card-list"></div>
-        <!-- vocab section -->
-        <div id="eng-vocab-wrap" style="margin-top:20px;border-top:2px solid var(--border);padding-top:12px;">
-          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="toggleEngVocab()">
-            <span id="eng-vocab-tog" style="font-size:12px;color:#cc0000;">▾</span>
-            <span style="font-size:12px;font-weight:bold;color:#000;">生词本</span>
-            <span id="eng-vocab-count" style="font-size:12px;color:#808080;"></span>
-          </div>
-          <div id="eng-vocab-list" style="margin-top:10px;"></div>
-        </div>
       </div>
     </div>
 
@@ -1113,7 +1107,7 @@ body{
 
 <!-- ENG CARD MODAL -->
 <div class="overlay" id="engCardModal">
-  <div class="modal" style="max-width:540px;font-family:Arial,sans-serif;">
+  <div class="modal" style="max-width:560px;font-family:Arial,sans-serif;">
     <button class="close-btn" onclick="closeModal('engCardModal')">✕</button>
     <div class="modal-title" id="engCardModalTitle">新建英语卡片</div>
     <input type="hidden" id="editEngCardId"/>
@@ -1123,35 +1117,19 @@ body{
     </div>
     <div class="form-row">
       <label class="form-label" style="font-family:Arial;">笔记</label>
-      <textarea class="form-textarea" id="engCardNote" rows="3" placeholder="随便写点什么..." style="font-family:Arial,sans-serif;font-size:15px;color:#111;background:#fff;"></textarea>
+      <textarea class="form-textarea" id="engCardNote" rows="2" placeholder="随便写点什么..." style="font-family:Arial,sans-serif;font-size:15px;color:#111;background:#fff;"></textarea>
+    </div>
+    <div class="form-row">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <label class="form-label" style="font-family:Arial;margin-bottom:0;">对话条目</label>
+        <button class="pxl-btn" onclick="engDialogAddRow()" style="font-size:11px;padding:1px 8px;">+ 添加</button>
+      </div>
+      <div id="engDialogRows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="engDialogEmpty" style="font-size:12px;color:#999;padding:4px 0;">尚无对话条目</div>
     </div>
     <div class="modal-btns">
       <button class="pxl-btn" onclick="closeModal('engCardModal')">取消</button>
       <button class="pxl-btn primary" onclick="saveEngCard()">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- ENG VOCAB MODAL -->
-<div class="overlay" id="engVocabModal">
-  <div class="modal" style="max-width:400px;font-family:Arial,sans-serif;">
-    <button class="close-btn" onclick="closeModal('engVocabModal')">✕</button>
-    <div class="modal-title">添加生词</div>
-    <div class="form-row">
-      <label class="form-label" style="font-family:Arial;">生词</label>
-      <input class="form-input" id="vocabWord" style="font-family:Arial;font-size:16px;color:#111;background:#fff;" readonly/>
-    </div>
-    <div class="form-row">
-      <label class="form-label" style="font-family:Arial;">释义（可选）</label>
-      <input class="form-input" id="vocabDef" placeholder="中文释义..." style="font-family:Arial;font-size:15px;color:#111;background:#fff;"/>
-    </div>
-    <div class="form-row">
-      <label class="form-label" style="font-family:Arial;">谐音标注（可选）</label>
-      <input class="form-input" id="vocabPron" placeholder="谐音/音标..." style="font-family:Arial;font-size:15px;color:#111;background:#fff;"/>
-    </div>
-    <div class="modal-btns">
-      <button class="pxl-btn" onclick="closeModal('engVocabModal')">取消</button>
-      <button class="pxl-btn primary" onclick="saveVocab()">保存</button>
     </div>
   </div>
 </div>
@@ -1414,7 +1392,6 @@ function migrateState(loaded) {
   if(!Array.isArray(S.habits)) S.habits=[];
   if(!Array.isArray(S.dreamGroups)) S.dreamGroups=[];
   if(!Array.isArray(S.engCards)) S.engCards=[];
-  if(!Array.isArray(S.vocab)) S.vocab=[];
   if(!S.checkins || typeof S.checkins!=='object') S.checkins={};
   if(!Array.isArray(S.energyTags)) S.energyTags=[];
   if(!S.dayNotes || typeof S.dayNotes!=='object') S.dayNotes={};
@@ -2260,10 +2237,39 @@ function renderArchive(containerId, items, current, onSelect){
 // ═══════════════════════════════════════
 // ENG CARDS — English sentence practice
 // ═══════════════════════════════════════
-let _engVocabShown = true;
 let _engSelTarget = null;
 let _engPopup = null;
 let _engPopupOpen = false;
+let _engDialogRows = []; // temp state for modal editor
+
+function engDialogAddRow(type, text){
+  _engDialogRows.push({type: type||'A', text: text||''});
+  renderEngDialogRows();
+}
+
+function engDialogDeleteRow(i){
+  _engDialogRows.splice(i,1);
+  renderEngDialogRows();
+}
+
+function renderEngDialogRows(){
+  const container = document.getElementById('engDialogRows');
+  const emptyMsg = document.getElementById('engDialogEmpty');
+  if(!container) return;
+  if(!_engDialogRows.length){
+    container.innerHTML='';
+    if(emptyMsg) emptyMsg.style.display='block';
+    return;
+  }
+  if(emptyMsg) emptyMsg.style.display='none';
+  container.innerHTML = _engDialogRows.map((d,i)=>`
+    <div class="eng-dialog-edit-row" style="display:flex;gap:6px;align-items:flex-start;">
+      <input class="eng-dlg-type" type="text" maxlength="12" style="font-family:var(--font-vt);font-size:13px;background:#fff;border:2px solid;border-color:var(--border-dk) var(--border-lt) var(--border-lt) var(--border-dk);padding:2px 5px;flex-shrink:0;width:72px;" placeholder="标签" value="${escHtml(d.type||'')}" oninput="_engDialogRows[${i}].type=this.value">
+      <textarea class="eng-dlg-text form-textarea" rows="2" style="flex:1;font-family:Arial,serif;font-size:14px;color:#111;background:#fff;resize:vertical;" placeholder="输入对话内容..." oninput="_engDialogRows[${i}].text=this.value">${escHtml(d.text)}</textarea>
+      <button class="pxl-btn" onclick="engDialogDeleteRow(${i})" style="font-size:11px;color:#c0392b;padding:1px 5px;flex-shrink:0;">✕</button>
+    </div>
+  `).join('');
+}
 
 function openEngCardModal(editId){
   const c = editId ? (S.engCards||[]).find(x=>x.id==editId) : null;
@@ -2271,6 +2277,9 @@ function openEngCardModal(editId){
   document.getElementById('engCardModalTitle').textContent = c ? '编辑卡片' : '新建英语卡片';
   document.getElementById('engCardText').value = c ? c.text||'' : '';
   document.getElementById('engCardNote').value = c ? c.note||'' : '';
+  // load dialogs
+  _engDialogRows = c && c.dialogs ? c.dialogs.map(d=>({...d})) : [];
+  renderEngDialogRows();
   openModal('engCardModal');
   setTimeout(()=>document.getElementById('engCardText').focus(),80);
 }
@@ -2280,12 +2289,19 @@ function saveEngCard(){
   if(!text) return;
   const note=document.getElementById('engCardNote').value.trim();
   const editId=document.getElementById('editEngCardId').value;
+  // collect dialog rows from DOM
+  const dialogs=[];
+  document.querySelectorAll('#engDialogRows .eng-dialog-edit-row').forEach(row=>{
+    const type=row.querySelector('.eng-dlg-type').value.trim();
+    const text=row.querySelector('.eng-dlg-text').value.trim();
+    if(text) dialogs.push({type:type||'A',text});
+  });
   if(!S.engCards) S.engCards=[];
   if(editId){
     const c=S.engCards.find(x=>x.id==editId);
-    if(c){ c.text=text; c.note=note; c.editedAt=new Date().toISOString(); }
+    if(c){ c.text=text; c.note=note; c.dialogs=dialogs; c.editedAt=new Date().toISOString(); }
   } else {
-    S.engCards.unshift({id:S.nextId++,text,note,highlights:[],masks:[],createdAt:new Date().toISOString()});
+    S.engCards.unshift({id:S.nextId++,text,note,dialogs,highlights:[],createdAt:new Date().toISOString()});
   }
   saveState(); closeModal('engCardModal'); renderEngCards();
 }
@@ -2302,8 +2318,8 @@ function exportEngCard(id){
     id: c.id,
     text: c.text,
     note: c.note||'',
+    dialogs: c.dialogs||[],
     highlights: c.highlights||[],
-    masks: c.masks||[],
     createdAt: c.createdAt,
     editedAt: c.editedAt||null
   };
@@ -2314,6 +2330,45 @@ function exportEngCard(id){
   a.download = 'engcard_' + slug + '_' + c.id + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function importEngCard(input){
+  const f = input.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      let p = JSON.parse(e.target.result);
+      if(!Array.isArray(p)) p = [p];
+      p = p.filter(c=>c&&c.text);
+      if(!p.length){ showToast('未找到有效卡片'); return; }
+      if(!S.engCards) S.engCards=[];
+      let added=0;
+      p.forEach(imp=>{
+        const exists = S.engCards.find(x=>x.id==imp.id);
+        if(exists){
+          // update existing
+          exists.text=imp.text; exists.note=imp.note||exists.note;
+          exists.dialogs=imp.dialogs||exists.dialogs||[];
+          exists.highlights=imp.highlights||exists.highlights||[];
+          exists.editedAt=new Date().toISOString();
+        } else {
+          S.engCards.unshift({
+            id: imp.id||S.nextId++,
+            text: imp.text,
+            note: imp.note||'',
+            dialogs: imp.dialogs||[],
+            highlights: imp.highlights||[],
+            createdAt: imp.createdAt||new Date().toISOString()
+          });
+          added++;
+        }
+      });
+      saveState(); renderEngCards();
+      showToast('已导入 '+p.length+' 张卡片'+(added<p.length?' ('+( p.length-added)+' 张已更新)':''));
+    } catch(err){ showToast('JSON 解析失败: '+err.message); }
+    input.value='';
+  };
+  r.readAsText(f);
 }
 
 // ── selection popup ──
@@ -2349,18 +2404,6 @@ function showEngPopup(cx, cy, selText){
   pop.appendChild(mkSwatch('blue','#bbdefb'));
   const sep=document.createElement('div'); sep.style.cssText='width:1px;height:14px;background:#aaa;margin:0 2px;';
   pop.appendChild(sep);
-  const maskBtn=document.createElement('div');
-  maskBtn.style.cssText='font-family:var(--font-vt);font-size:13px;color:#555;cursor:pointer;padding:0 3px;white-space:nowrap;';
-  maskBtn.textContent='▓遮蔽';
-  maskBtn.onmousedown=ev=>{ ev.preventDefault(); ev.stopPropagation(); applyEngMask(); };
-  pop.appendChild(maskBtn);
-  const sep2=document.createElement('div'); sep2.style.cssText='width:1px;height:14px;background:#aaa;margin:0 2px;'; pop.appendChild(sep2);
-  const vocBtn=document.createElement('div');
-  vocBtn.style.cssText='font-family:var(--font-vt);font-size:13px;color:#336699;cursor:pointer;padding:0 3px;white-space:nowrap;';
-  vocBtn.textContent='📖生词';
-  vocBtn.onmousedown=ev=>{ ev.preventDefault(); ev.stopPropagation(); openEngVocabModal(selText); };
-  pop.appendChild(vocBtn);
-  const sep3=document.createElement('div'); sep3.style.cssText='width:1px;height:14px;background:#aaa;margin:0 2px;'; pop.appendChild(sep3);
   const clearBtn=document.createElement('div');
   clearBtn.style.cssText='font-family:var(--font-vt);font-size:13px;color:#c0392b;cursor:pointer;padding:0 3px;';
   clearBtn.textContent='✕清除';
@@ -2388,95 +2431,25 @@ function applyEngHl(color){
   c.highlights.push({start,end,color});
   engHidePopup(); saveState(); renderEngCards();
 }
-function applyEngMask(){
-  if(!_engSelTarget) return;
-  const{cardId,start,end}=_engSelTarget;
-  const c=(S.engCards||[]).find(x=>x.id==cardId); if(!c) return;
-  if(!c.masks) c.masks=[];
-  const existing=c.masks.find(m=>m.start<=start&&m.end>=end);
-  if(existing){ c.masks=c.masks.filter(m=>m!==existing); }
-  else { c.masks=c.masks.filter(m=>m.end<=start||m.start>=end); c.masks.push({start,end}); }
-  engHidePopup(); saveState(); renderEngCards();
-}
 function clearEngMark(){
   if(!_engSelTarget) return;
   const{cardId,start,end}=_engSelTarget;
   const c=(S.engCards||[]).find(x=>x.id==cardId); if(!c) return;
   c.highlights=(c.highlights||[]).filter(h=>!(h.start<end&&h.end>start));
-  c.masks=(c.masks||[]).filter(m=>!(m.start<end&&m.end>start));
   engHidePopup(); saveState(); renderEngCards();
-}
-function toggleEngMask(cardId,mIdx){
-  const c=(S.engCards||[]).find(x=>x.id==cardId); if(!c||!c.masks) return;
-  if(!c._maskHidden) c._maskHidden={};
-  c._maskHidden[mIdx]=!c._maskHidden[mIdx];
-  renderEngCards();
-}
-
-// ── vocab ──
-let _vocabEditId=null;
-function openEngVocabModal(word){
-  document.getElementById('vocabWord').value=word||(_engSelTarget?_engSelTarget.text:'');
-  document.getElementById('vocabWord').removeAttribute('readonly');
-  document.getElementById('vocabDef').value='';
-  document.getElementById('vocabPron').value='';
-  _vocabEditId=null;
-  engHidePopup();
-  openModal('engVocabModal');
-  setTimeout(()=>document.getElementById('vocabDef').focus(),80);
-}
-function saveVocab(){
-  const word=document.getElementById('vocabWord').value.trim(); if(!word) return;
-  const def=document.getElementById('vocabDef').value.trim();
-  const pron=document.getElementById('vocabPron').value.trim();
-  if(!S.vocab) S.vocab=[];
-  if(_vocabEditId){
-    const v=S.vocab.find(x=>x.id==_vocabEditId);
-    if(v){ v.word=word; v.def=def; v.pron=pron; }
-    _vocabEditId=null;
-  } else {
-    const existing=S.vocab.find(v=>v.word.toLowerCase()===word.toLowerCase());
-    if(existing){ existing.def=def||existing.def; existing.pron=pron||existing.pron; }
-    else S.vocab.push({id:S.nextId++,word,def,pron,createdAt:new Date().toISOString()});
-  }
-  saveState(); closeModal('engVocabModal'); renderEngCards();
-}
-function deleteVocab(id){ S.vocab=(S.vocab||[]).filter(v=>v.id!=id); saveState(); renderEngVocab(); }
-function editVocab(id){
-  const v=(S.vocab||[]).find(x=>x.id==id); if(!v) return;
-  document.getElementById('vocabWord').value=v.word;
-  document.getElementById('vocabDef').value=v.def||'';
-  document.getElementById('vocabPron').value=v.pron||'';
-  document.getElementById('vocabWord').removeAttribute('readonly');
-  _vocabEditId=id;
-  openModal('engVocabModal');
-  setTimeout(()=>document.getElementById('vocabDef').focus(),80);
-}
-function toggleEngVocab(){
-  _engVocabShown=!_engVocabShown;
-  const tog=document.getElementById('eng-vocab-tog');
-  const lst=document.getElementById('eng-vocab-list');
-  if(tog) tog.textContent=_engVocabShown?'▾':'▸';
-  if(lst) lst.style.display=_engVocabShown?'block':'none';
 }
 
 // ── render ──
-function engApplyAnnotations(text,highlights,masks,maskHidden,cardId){
+function engApplyAnnotations(text,highlights,cardId){
   const events=[];
   (highlights||[]).forEach((h,i)=>{ events.push({pos:h.start,type:'hl_open',color:h.color,i},{pos:h.end,type:'hl_close',i}); });
-  (masks||[]).forEach((m,i)=>{ events.push({pos:m.start,type:'mask_open',i},{pos:m.end,type:'mask_close',i}); });
   events.sort((a,b)=>a.pos-b.pos||(a.type.includes('close')?1:-1));
-  let html='',pos=0; const hlStack=[],maskStack=[];
+  let html='',pos=0; const hlStack=[];
   const txt=text;
   const advance=to=>{
     if(to<=pos) return;
     const chunk=escHtml(txt.slice(pos,to));
-    if(maskStack.length>0){
-      const mIdx=maskStack[maskStack.length-1];
-      const hidden=!(maskHidden&&maskHidden[mIdx]);
-      if(hidden){ html+='<span class="eng-mask" onclick="toggleEngMask('+cardId+','+mIdx+')" title="点击显示">'+chunk.replace(/\S/g,'█')+'</span>'; }
-      else { html+='<span class="eng-mask eng-mask-revealed" onclick="toggleEngMask('+cardId+','+mIdx+')" title="点击隐藏">'+chunk+'</span>'; }
-    } else if(hlStack.length>0){
+    if(hlStack.length>0){
       html+='<mark class="hl-'+hlStack[hlStack.length-1]+'">'+chunk+'</mark>';
     } else { html+=chunk; }
     pos=to;
@@ -2485,8 +2458,6 @@ function engApplyAnnotations(text,highlights,masks,maskHidden,cardId){
     advance(ev.pos);
     if(ev.type==='hl_open') hlStack.push(ev.color);
     else if(ev.type==='hl_close') hlStack.pop();
-    else if(ev.type==='mask_open') maskStack.push(ev.i);
-    else if(ev.type==='mask_close') maskStack.pop();
   });
   advance(txt.length);
   return html;
@@ -2497,7 +2468,7 @@ function renderEngCards(){
   const cards=S.engCards||[];
   if(!cards.length){
     list.innerHTML='<div class="empty-state" style="background:#c0c0c0;padding:40px;text-align:center;border:2px solid;border-color:var(--border-dk) var(--border-lt) var(--border-lt) var(--border-dk);"><div style="font-size:32px;margin-bottom:10px;">📖</div><div style="font-family:var(--font-vt);font-size:16px;">新建一张卡片开始练习</div></div>';
-    renderEngVocab(); return;
+    return;
   }
   list.innerHTML='';
   cards.forEach(c=>{
@@ -2511,7 +2482,7 @@ function renderEngCards(){
     acts.appendChild(eb); acts.appendChild(xb); acts.appendChild(db);
     hdr.appendChild(ts); hdr.appendChild(acts); wrap.appendChild(hdr);
     const body=document.createElement('div'); body.className='eng-card-body';
-    body.innerHTML=engApplyAnnotations(c.text,c.highlights,c.masks,c._maskHidden,c.id);
+    body.innerHTML=engApplyAnnotations(c.text,c.highlights,c.id);
     body.addEventListener('mouseup',ev=>engOnSelect(ev,c.id));
     wrap.appendChild(body);
     if(c.note){
@@ -2519,34 +2490,26 @@ function renderEngCards(){
       noteEl.style.cssText='margin-top:10px;padding:7px 10px;background:var(--surface);border-left:3px solid #336699;font-family:var(--font-vt);font-size:15px;color:var(--light);line-height:1.6;white-space:pre-wrap;';
       noteEl.textContent=c.note; wrap.appendChild(noteEl);
     }
+    if(c.dialogs&&c.dialogs.length){
+      const dlgWrap=document.createElement('div');
+      dlgWrap.style.cssText='margin-top:10px;padding:8px 10px;background:#f0f0f0;border:1px solid #ccc;';
+      const dlgHdr=document.createElement('div');
+      dlgHdr.style.cssText='font-family:var(--font-pixel);font-size:6px;color:#808080;margin-bottom:6px;letter-spacing:1px;';
+      dlgHdr.textContent='DIALOGUE';
+      dlgWrap.appendChild(dlgHdr);
+      c.dialogs.forEach(d=>{
+        const row=document.createElement('div'); row.className='eng-dialog-row';
+        const tag=document.createElement('span');
+        tag.className='eng-dialog-tag';
+        tag.textContent=d.type||'';
+        const txt=document.createElement('span'); txt.className='eng-dialog-text'; txt.textContent=d.text;
+        row.appendChild(tag); row.appendChild(txt); dlgWrap.appendChild(row);
+      });
+      wrap.appendChild(dlgWrap);
+    }
     list.appendChild(wrap);
   });
-  renderEngVocab();
 }
-
-function renderEngVocab(){
-  const vocab=S.vocab||[];
-  const countEl=document.getElementById('eng-vocab-count');
-  if(countEl) countEl.textContent='('+vocab.length+')';
-  const lst=document.getElementById('eng-vocab-list'); if(!lst) return;
-  lst.style.display=_engVocabShown?'block':'none';
-  if(!vocab.length){ lst.innerHTML='<div style="font-family:var(--font-vt);font-size:15px;color:#888;padding:8px 0;">还没有生词，划选文字后点击「生词」添加</div>'; return; }
-  const tbl=document.createElement('div');
-  tbl.style.cssText='display:grid;grid-template-columns:180px 1fr 1fr 60px;gap:0;border:2px solid;border-color:var(--border-dk) var(--border-lt) var(--border-lt) var(--border-dk);overflow:hidden;font-family:var(--font-vt);';
-  const mkHdr=t=>{ const h=document.createElement('div'); h.style.cssText='background:#336699;color:#fff;padding:5px 8px;font-size:13px;border-right:1px solid #224477;border-bottom:1px solid #224477;font-family:var(--font-pixel);font-size:6px;'; h.textContent=t; return h; };
-  tbl.appendChild(mkHdr('单词')); tbl.appendChild(mkHdr('释义')); tbl.appendChild(mkHdr('谐音/音标')); tbl.appendChild(mkHdr(''));
-  vocab.forEach(v=>{
-    const mkCell=t=>{ const d=document.createElement('div'); d.style.cssText='background:#fff;padding:6px 8px;font-size:15px;color:#111;line-height:1.5;word-break:break-word;border-right:1px solid #ddd;border-bottom:1px solid #ddd;'; d.textContent=t||'—'; return d; };
-    const wEl=document.createElement('div'); wEl.style.cssText='background:#fff;padding:6px 8px;font-size:16px;font-weight:bold;color:#111;border-right:1px solid #ddd;border-bottom:1px solid #ddd;'; wEl.textContent=v.word;
-    tbl.appendChild(wEl); tbl.appendChild(mkCell(v.def)); tbl.appendChild(mkCell(v.pron));
-    const actCell=document.createElement('div'); actCell.style.cssText='background:#fff;padding:3px 4px;display:flex;align-items:center;gap:2px;border-bottom:1px solid #ddd;';
-    const eb2=document.createElement('button'); eb2.style.cssText='font-size:10px;background:var(--surface);border:2px solid;border-color:var(--border-lt) var(--border-dk) var(--border-dk) var(--border-lt);cursor:pointer;padding:1px 3px;'; eb2.textContent='[EDIT]'; eb2.onclick=()=>editVocab(v.id);
-    const db2=document.createElement('button'); db2.style.cssText='font-size:10px;background:var(--surface);border:2px solid;border-color:var(--border-lt) var(--border-dk) var(--border-dk) var(--border-lt);cursor:pointer;padding:1px 3px;color:#c0392b;'; db2.textContent='✕'; db2.onclick=()=>deleteVocab(v.id);
-    actCell.appendChild(eb2); actCell.appendChild(db2); tbl.appendChild(actCell);
-  });
-  lst.innerHTML=''; lst.appendChild(tbl);
-}
-
 
 async function forceReloadFromCloud(){
   const dbg = document.getElementById('debug-out');

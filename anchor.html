@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"/>
+<title>Anchor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --f:"MS Sans Serif","SimSun","宋体",Tahoma,Arial,sans-serif;
+  --gray:#c0c0c0;--light:#dfdfdf;--dk:#404040;--mid:#808080;
+  --blue:#000080;--blue2:#1084d0;
+}
+html,body{height:100%;background:var(--gray);font-family:var(--f);font-size:13px;color:#000;overflow:hidden;}
+body{display:flex;flex-direction:column;}
+.tb{background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;font-size:12px;font-weight:bold;padding:3px 8px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;}
+.btn{font-family:var(--f);font-size:12px;cursor:pointer;padding:3px 10px;background:var(--gray);color:#000;border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;white-space:nowrap;}
+.btn:hover:not(:disabled){background:var(--light);}
+.btn:active:not(:disabled){border-color:var(--dk) #fff #fff var(--dk);transform:translate(1px,1px);}
+.btn:disabled{color:var(--mid);cursor:default;}
+.sbar{background:var(--gray);border-top:2px solid var(--dk);padding:2px 6px;font-size:11px;display:flex;gap:8px;flex-shrink:0;}
+.sp{border:1px solid var(--dk);padding:1px 6px;}
+
+/* setup screen */
+.setup-screen{position:fixed;inset:0;background:var(--gray);z-index:100;display:flex;align-items:center;justify-content:center;}
+.setup-box{width:440px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
+.dropzone{border:3px dashed var(--mid);background:#fff;padding:24px;text-align:center;cursor:pointer;color:var(--mid);transition:all .15s;margin:10px;}
+.dropzone.over{border-color:var(--blue);background:#e8e8ff;color:var(--blue);}
+.dropzone.ok{border-color:#006600;background:#e8ffe8;color:#006600;}
+
+/* tab bar */
+#tabBar{display:flex;align-items:flex-end;padding:4px 6px 0;gap:2px;background:var(--gray);border-bottom:2px solid var(--dk);flex-shrink:0;}
+.tab{font-family:var(--f);font-size:12px;padding:3px 14px 2px;cursor:pointer;background:var(--light);border:2px solid;border-color:#fff var(--dk) var(--gray) #fff;border-bottom:none;color:var(--mid);user-select:none;position:relative;top:2px;}
+.tab.active{background:var(--gray);color:#000;font-weight:bold;z-index:1;}
+.tab:hover:not(.active){background:var(--gray);color:#000;}
+
+#appWrap{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.tab-panel{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.tab-panel.active{display:flex;}
+
+/* shared card list column */
+.cardCol{width:260px;flex-shrink:0;border-right:2px solid var(--dk);display:flex;flex-direction:column;overflow:hidden;}
+.cardColHdr{background:var(--light);border-bottom:1px solid var(--dk);padding:3px 8px;font-size:11px;font-weight:bold;color:var(--blue);flex-shrink:0;}
+.cardList{flex:1;overflow-y:auto;background:#fff;}
+.cardItem{padding:6px 10px;cursor:pointer;border-bottom:1px solid #ddd;font-size:12px;}
+.cardItem:hover{background:var(--light);}
+.cardItem.active{background:#cce0ff;}
+.ci-meta{font-size:10px;color:var(--mid);margin-bottom:1px;}
+.ci-title{font-weight:bold;color:#000;}
+
+/* TAB 1: memory mode */
+#toolbar1{padding:5px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:2px solid var(--dk);background:var(--gray);}
+.legend{display:flex;gap:8px;font-size:11px;align-items:center;}
+.ldot{width:11px;height:11px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:2px;}
+#body1{display:flex;flex:1;overflow:hidden;}
+#mem1Main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#cardWrap{flex:1;overflow-y:auto;background:#fff;border-bottom:3px solid var(--dk);}
+#cardArea{padding:14px 18px 8px;line-height:2.4;font-size:17px;font-family:Arial,sans-serif;white-space:pre-wrap;word-break:break-word;cursor:text;user-select:text;}
+#noteArea{padding:4px 18px 8px;font-size:12px;color:var(--mid);border-top:1px dashed var(--mid);background:#fafafa;white-space:pre-wrap;display:none;}
+#noCard1{color:var(--mid);font-size:13px;padding:20px;}
+#transWrap{flex-shrink:0;display:flex;flex-direction:column;background:var(--gray);}
+#transHeader{display:flex;align-items:center;gap:8px;padding:5px 8px;border-top:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
+#recBtn{width:48px;height:48px;border-radius:50%;border:3px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#recBtn:hover{background:var(--light);}
+#recBtn.on{background:#cc0000;border-color:#fff #600 #600 #fff;}
+#transInfo{display:flex;flex-direction:column;gap:3px;flex:1;}
+#scoreRow{display:flex;align-items:center;gap:8px;font-size:12px;}
+#covBar{flex:1;height:10px;background:#fff;border:2px inset var(--dk);}
+#covFill{height:100%;background:var(--blue);width:0%;transition:width .4s;}
+#covPct{font-weight:bold;font-family:monospace;width:38px;text-align:right;color:var(--mid);}
+#gradeBox{font-weight:bold;font-size:20px;width:24px;font-family:monospace;color:var(--mid);}
+#histSpan{font-size:11px;color:var(--mid);}
+#transcript{min-height:52px;max-height:110px;overflow-y:auto;padding:5px 10px;font-size:14px;font-family:Arial,sans-serif;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);margin:0 8px 6px;color:#000;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+#transcript.listening{border-color:#cc0000;}
+.w{border-radius:2px;padding:0 2px;}
+.w.said{background:#cce0ff;color:#003380;}
+.w.missed{background:#e2e3e5;color:#383d41;text-decoration:line-through;}
+.mk{background:#909090;color:transparent;cursor:pointer;border-radius:2px;padding:0 2px;}
+.mk.vis{background:#c8c8ff;color:#000;}
+#pop{position:fixed;display:none;flex-direction:column;gap:3px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;padding:4px;z-index:200;}
+
+/* TAB 2: conversation mode */
+#toolbar2{padding:5px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:2px solid var(--dk);background:var(--gray);}
+#body2{display:flex;flex:1;overflow:hidden;}
+#convMain{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#convCardView{flex:1;overflow-y:auto;background:#fff;padding:14px 18px;}
+#noCard2{color:var(--mid);font-size:13px;}
+#convTextLabel{font-size:10px;font-weight:bold;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+#convText{font-size:16px;font-family:Arial,sans-serif;line-height:1.8;color:#000;white-space:pre-wrap;word-break:break-word;}
+#convNoteLabel{font-size:10px;font-weight:bold;color:var(--mid);text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px;display:none;}
+#convNoteText{font-size:12px;font-family:Arial,sans-serif;color:var(--mid);white-space:pre-wrap;border-left:3px solid var(--mid);padding-left:8px;line-height:1.6;display:none;}
+#dlgToggleRow{margin-top:14px;display:none;align-items:center;gap:8px;}
+#dlgToggleBtn{font-size:11px;}
+#dlgBlock{margin-top:8px;padding:8px 10px;background:#f0f0f0;border:1px solid #ccc;display:none;}
+#dlgBlockHdr{font-family:monospace;font-size:10px;color:#808080;margin-bottom:6px;letter-spacing:1px;}
+.dlg-row{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;}
+.dlg-tag{font-family:monospace;font-size:10px;color:#fff;background:#555;padding:2px 5px;white-space:nowrap;flex-shrink:0;margin-top:3px;letter-spacing:.5px;}
+.dlg-text{font-family:"Times New Roman","SimSun","宋体",serif;font-size:14px;line-height:1.7;color:#000;flex:1;}
+#answerHistSection{margin-top:14px;border-top:1px dashed var(--mid);padding-top:10px;}
+#answerHistLabel{font-size:10px;font-weight:bold;color:#006600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.answer-entry{font-size:13px;font-family:Arial,sans-serif;color:#333;line-height:1.7;white-space:pre-wrap;background:#f5fff5;border:1px solid #99cc99;padding:6px 10px;margin-bottom:6px;}
+.answer-entry-ts{font-size:10px;color:var(--mid);margin-bottom:3px;}
+#recArea{flex-shrink:0;border-top:2px solid var(--dk);background:var(--gray);padding:6px 8px;display:flex;flex-direction:column;gap:5px;}
+#recRow{display:flex;align-items:center;gap:8px;}
+#recBtn2{width:44px;height:44px;border-radius:50%;border:3px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#recBtn2:hover{background:var(--light);}
+#recBtn2.on{background:#cc0000;border-color:#fff #600 #600 #fff;}
+#recMeta{flex:1;display:flex;flex-direction:column;gap:2px;}
+#recLabel2{font-size:11px;font-weight:bold;color:var(--blue);}
+#recHint2{font-size:11px;color:var(--mid);}
+#recTranscript{min-height:44px;max-height:90px;overflow-y:auto;padding:5px 10px;font-size:13px;font-family:Arial,sans-serif;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);color:#000;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+#recTranscript.listening{border-color:#cc0000;}
+#actRow2{display:flex;gap:5px;align-items:center;}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="setup" class="setup-screen">
+  <div class="setup-box">
+    <div class="tb">⚓ Anchor</div>
+    <div style="padding:10px;display:flex;flex-direction:column;gap:6px;">
+      <div id="dropzone" class="dropzone" onclick="document.getElementById('fi').click()">
+        <div style="font-size:24px;margin-bottom:6px;">📄</div>
+        <div>拖入 <code>.json</code> 卡片，或点击选择</div>
+        <div style="font-size:11px;margin-top:3px;color:#808080;">支持主程序导出的英语卡片，单张或数组均可</div>
+      </div>
+      <input type="file" id="fi" accept=".json" style="display:none;" onchange="onFI(this)">
+      <div id="impMsg" style="font-size:11px;color:#cc0000;min-height:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appWrap">
+  <div class="tb">
+    <span>⚓ Anchor</span>
+    <button class="btn" style="font-size:11px;padding:1px 7px;background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.4) rgba(0,0,80,.4) rgba(0,0,80,.4) rgba(255,255,255,.4);" onclick="backToSetup()">◀ 重新导入</button>
+  </div>
+
+  <div id="tabBar">
+    <div class="tab active" id="tab1" onclick="switchTab(1)">📖 记忆模式</div>
+    <div class="tab" id="tab2" onclick="switchTab(2)">🗣 对话模式</div>
+  </div>
+
+  <!-- TAB 1: MEMORY -->
+  <div class="tab-panel active" id="panel1">
+    <div id="toolbar1">
+      <span style="font-size:11px;font-weight:bold;color:var(--blue);">遮蔽:</span>
+      <button class="btn" id="maskBtn" onclick="applyMask()" disabled>▓ 划选</button>
+      <button class="btn" id="umBtn" onclick="clearMask()" disabled style="color:#cc0000;">✕ 取消</button>
+      <button class="btn" onclick="maskAll()">▓ 全遮蔽</button>
+      <button class="btn" onclick="resetView()">↺ 重置</button>
+      <div id="legendRow" style="display:none;margin-left:6px;" class="legend">
+        <span><span class="ldot" style="background:#cce0ff;border:1px solid #003380;"></span>说了</span>
+        <span><span class="ldot" style="background:#e2e3e5;border:1px solid #383d41;"></span>漏读</span>
+      </div>
+    </div>
+    <div id="body1">
+      <div class="cardCol">
+        <div class="cardColHdr">卡片列表</div>
+        <div class="cardList" id="cardList1"></div>
+      </div>
+      <div id="mem1Main">
+        <div id="cardWrap">
+          <div id="noCard1">从左侧选择一张卡片开始背诵</div>
+          <div id="cardArea" style="display:none;" onmouseup="onSel()" ontouchend="onSel()"></div>
+          <div id="noteArea"></div>
+        </div>
+        <div id="transWrap">
+          <div id="transHeader">
+            <div id="recBtn" onclick="toggleRec()">🎙</div>
+            <div id="transInfo">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span id="transLabel" style="font-size:11px;font-weight:bold;color:var(--blue);">点击麦克风开始</span>
+                <span id="recStatus" style="font-size:11px;color:#cc0000;"></span>
+              </div>
+              <div id="scoreRow">
+                <span style="font-size:11px;color:var(--mid);">覆盖</span>
+                <div id="covBar"><div id="covFill"></div></div>
+                <span id="covPct">--</span>
+                <span id="gradeBox">--</span>
+                <span id="histSpan"></span>
+              </div>
+            </div>
+          </div>
+          <div id="transcript"></div>
+        </div>
+      </div>
+    </div>
+    <div class="sbar">
+      <div class="sp" id="sMask">遮蔽: 0</div>
+      <div class="sp" id="sDrill">次数: 0</div>
+      <div class="sp" id="sBest">最高: --</div>
+    </div>
+  </div>
+
+  <!-- TAB 2: CONVERSATION -->
+  <div class="tab-panel" id="panel2">
+    <div id="toolbar2">
+      <button class="btn" id="exportBtn" onclick="exportCurrentCard()" disabled>💾 导出此卡片（含回答）</button>
+      <button class="btn" id="clearAnsBtn" onclick="clearAnswers()" disabled style="color:#cc0000;">✕ 清空回答历史</button>
+      <span style="font-size:11px;color:var(--mid);margin-left:4px;" id="cardCount2"></span>
+    </div>
+    <div id="body2">
+      <div class="cardCol">
+        <div class="cardColHdr">情境卡片</div>
+        <div class="cardList" id="cardList2"></div>
+      </div>
+      <div id="convMain">
+        <div id="convCardView">
+          <div id="noCard2">从左侧选择情境卡片</div>
+          <div id="convCardDetail" style="display:none;">
+            <div id="convTextLabel">情境</div>
+            <div id="convText"></div>
+            <div id="convNoteLabel">背景笔记</div>
+            <div id="convNoteText"></div>
+            <div id="dlgToggleRow">
+              <button class="btn" id="dlgToggleBtn" onclick="toggleDlgBlock()">▸ 查看对话参考</button>
+            </div>
+            <div id="dlgBlock">
+              <div id="dlgBlockHdr">DIALOGUE REFERENCE</div>
+              <div id="dlgRows"></div>
+            </div>
+            <div id="answerHistSection">
+              <div id="answerHistLabel">回答记录</div>
+              <div id="answerHistList"></div>
+            </div>
+          </div>
+        </div>
+        <div id="recArea">
+          <div id="recRow">
+            <div id="recBtn2" onclick="toggleRec2()">🎙</div>
+            <div id="recMeta">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span id="recLabel2">点击麦克风开始录音</span>
+                <span id="recStatus2" style="font-size:11px;color:#cc0000;"></span>
+              </div>
+              <div id="recHint2">自由口述回应这个情境，不需要逐句对照</div>
+            </div>
+          </div>
+          <div id="recTranscript"></div>
+          <div id="actRow2">
+            <button class="btn" id="saveBtn2" onclick="saveAnswer()" disabled style="font-size:11px;">✓ 保存此回答</button>
+            <button class="btn" id="discardBtn2" onclick="discardAnswer()" disabled style="font-size:11px;color:#cc0000;">✕ 丢弃</button>
+            <span id="ansLen2" style="font-size:11px;color:var(--mid);margin-left:4px;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sbar">
+      <div class="sp" id="statCards2">卡片: 0</div>
+      <div class="sp" id="statAnswered2">已录: 0</div>
+      <div class="sp" id="statWords2">本次词数: --</div>
+    </div>
+  </div>
+</div>
+
+<div id="pop">
+  <button class="btn" onclick="applyMask()">▓ 遮蔽</button>
+  <button class="btn" onclick="clearMask()" style="color:#cc0000;">✕ 取消</button>
+</div>
+
+<script>
+'use strict';
+
+// ════════════════════════════════
+//  SHARED STATE — cards imported once, used by both tabs
+// ════════════════════════════════
+let cards = [];      // raw imported card objects: {id,text,note,dialogs,highlights,answers}
+let curIdx1 = -1;     // selected card index for memory mode
+let curIdx2 = -1;     // selected card index for conversation mode
+let activeTab = 1;
+let dlgOpen = false;
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── import ──
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);});
+function onFI(inp){ if(inp.files[0]) readFile(inp.files[0]); }
+
+function readFile(f){
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      let p = JSON.parse(e.target.result);
+      if(!Array.isArray(p)) p = [p];
+      p = p.filter(c => c && typeof c.text === 'string' && c.text.trim());
+      if(!p.length){ document.getElementById('impMsg').textContent = '未找到有效卡片（需要 text 字段）'; return; }
+      p.forEach((c,i) => {
+        if(!c.id) c.id = Date.now()+i;
+        if(!Array.isArray(c.dialogs)) c.dialogs = [];
+        if(!Array.isArray(c.highlights)) c.highlights = [];
+        if(!Array.isArray(c.answers)) c.answers = [];
+        c.note = c.note || '';
+        c._masks = []; // memory-mode masks live only inside Anchor, never exported back
+        c._maskHidden = {};
+      });
+      cards = p;
+      dz.classList.add('ok');
+      dz.innerHTML = '<div style="font-size:22px;margin-bottom:4px;">✓</div><div>已载入 '+p.length+' 张卡片</div>';
+      document.getElementById('impMsg').textContent='';
+      launchApp();
+    } catch(err) {
+      document.getElementById('impMsg').textContent = 'JSON 解析失败: ' + err.message;
+    }
+  };
+  r.readAsText(f);
+}
+
+function launchApp(){
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('appWrap').style.display = 'flex';
+  renderCardList1();
+  renderCardList2();
+  switchTab(1);
+  if(cards.length){ selectCard1(0); }
+  updateConvStats();
+}
+
+function backToSetup(){
+  stopRec(); stopRec2();
+  document.getElementById('appWrap').style.display = 'none';
+  document.getElementById('setup').style.display = 'flex';
+}
+
+function switchTab(n){
+  activeTab = n;
+  document.getElementById('tab1').classList.toggle('active', n===1);
+  document.getElementById('tab2').classList.toggle('active', n===2);
+  document.getElementById('panel1').classList.toggle('active', n===1);
+  document.getElementById('panel2').classList.toggle('active', n===2);
+}
+
+// ════════════════════════════════
+//  CARD LISTS (shared rendering helper, separate selection state per tab)
+// ════════════════════════════════
+function cardLabel(c){
+  return (c.text||'').slice(0,32) + ((c.text||'').length>32?'…':'');
+}
+
+function renderCardList1(){
+  const list = document.getElementById('cardList1');
+  if(!cards.length){ list.innerHTML = '<div style="padding:12px;color:var(--mid);font-size:12px;">尚未导入</div>'; return; }
+  list.innerHTML = cards.map((c,i)=>{
+    const maskCount = (c._masks||[]).length;
+    return '<div class="cardItem'+(i===curIdx1?' active':'')+'" onclick="selectCard1('+i+')">'
+      +'<div class="ci-meta">遮蔽 '+maskCount+(c._bestScore!=null?(' · 最高 '+c._bestScore+'%'):'')+'</div>'
+      +'<div class="ci-title">'+esc(cardLabel(c))+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function renderCardList2(){
+  const list = document.getElementById('cardList2');
+  if(!cards.length){ list.innerHTML = '<div style="padding:12px;color:var(--mid);font-size:12px;">尚未导入</div>'; return; }
+  list.innerHTML = cards.map((c,i)=>{
+    const answered = c.answers && c.answers.length > 0;
+    const dot = answered ? ' <span style="color:#006600;">✓</span>' : '';
+    return '<div class="cardItem'+(i===curIdx2?' active':'')+'" onclick="selectCard2('+i+')">'
+      +'<div class="ci-meta">'+(c.dialogs.length?('对话 '+c.dialogs.length+' 条'):'无对话参考')+dot+'</div>'
+      +'<div class="ci-title">'+esc(cardLabel(c))+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// ════════════════════════════════
+//  TAB 1 — MEMORY MODE
+// ════════════════════════════════
+let selS=0, selE=0;
+let drillN=0;
+let isRec=false, recog=null, fullTranscript='';
+
+function selectCard1(i){
+  stopRec();
+  curIdx1 = i;
+  renderCardList1();
+  const c = cards[i];
+  if(!c){ return; }
+  document.getElementById('noCard1').style.display='none';
+  document.getElementById('cardArea').style.display='block';
+  drillN = 0;
+  document.getElementById('sMask').textContent = '遮蔽: ' + (c._masks||[]).length;
+  document.getElementById('sDrill').textContent = '次数: 0';
+  document.getElementById('sBest').textContent = c._bestScore!=null ? ('最高: '+c._bestScore+'%') : '最高: --';
+  document.getElementById('legendRow').style.display='none';
+  const na = document.getElementById('noteArea');
+  if(c.note && c.note.trim()){ na.textContent = '📝 ' + c.note; na.style.display='block'; }
+  else na.style.display='none';
+  resetScore();
+  renderPlain();
+  document.getElementById('transcript').textContent='';
+  document.getElementById('transcript').classList.remove('listening');
+}
+
+function curCard1(){ return curIdx1>=0 ? cards[curIdx1] : null; }
+
+function renderPlain(){
+  const c = curCard1();
+  if(!c){ document.getElementById('cardArea').innerHTML = ''; return; }
+  const text = c.text, masks = c._masks||[];
+  if(!masks.length){ document.getElementById('cardArea').innerHTML = esc(text).replace(/\n/g,'<br>'); return; }
+  const evs = [];
+  masks.forEach((m,i)=>{ evs.push({p:m.start,t:'o',i},{p:m.end,t:'c',i}); });
+  evs.sort((a,b)=>a.p-b.p||(a.t==='c'?-1:1));
+  let html='', pos=0, inM=false, mi=-1;
+  for(const ev of evs){
+    const chunk = text.slice(pos, ev.p);
+    if(chunk){
+      if(inM) html += '<span class="mk" data-mi="'+mi+'" onclick="clickMk('+mi+')">'+chunk.replace(/\S/g,'█')+'</span>';
+      else html += esc(chunk).replace(/\n/g,'<br>');
+    }
+    pos = ev.p;
+    if(ev.t==='o'){ inM=true; mi=ev.i; } else { inM=false; mi=-1; }
+  }
+  if(pos<text.length) html += esc(text.slice(pos)).replace(/\n/g,'<br>');
+  document.getElementById('cardArea').innerHTML = html;
+}
+
+function wordsMatch(a,b){
+  if(a===b) return true;
+  if(a.length>=4 && b.length>=4 && (a.includes(b)||b.includes(a))) return true;
+  const la=a.length, lb=b.length;
+  if(Math.abs(la-lb)>2 || Math.min(la,lb)<4) return false;
+  const prev=new Uint8Array(lb+1);
+  const curr=new Uint8Array(lb+1);
+  for(let j=0;j<=lb;j++) prev[j]=j;
+  for(let i=1;i<=la;i++){
+    curr[0]=i;
+    for(let j=1;j<=lb;j++){
+      curr[j] = a[i-1]===b[j-1] ? prev[j-1] : 1+Math.min(prev[j-1],prev[j],curr[j-1]);
+    }
+    prev.set(curr);
+  }
+  return prev[lb]<=2;
+}
+
+function scoreAndRender(transcript){
+  const c = curCard1(); if(!c) return;
+  const spokenWords = transcript.toLowerCase().replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0);
+  const text = c.text;
+  const refTokens = [];
+  const re = /[a-zA-Z']+/g;
+  let m;
+  while((m=re.exec(text))!==null){
+    refTokens.push({norm:m[0].toLowerCase(), start:m.index, end:m.index+m[0].length});
+  }
+  document.getElementById('transcript').textContent = transcript + '\n\n[识别到 '+spokenWords.length+' 词 / 原文 '+refTokens.length+' 词]';
+  const R=refTokens.length, S=spokenWords.length;
+  const dp = Array.from({length:R+1},()=>new Uint16Array(S+1));
+  for(let i=1;i<=R;i++){
+    for(let j=1;j<=S;j++){
+      if(wordsMatch(refTokens[i-1].norm, spokenWords[j-1])) dp[i][j]=dp[i-1][j-1]+1;
+      else dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
+    }
+  }
+  const matched = new Uint8Array(R);
+  let i=R, j=S;
+  while(i>0 && j>0){
+    if(wordsMatch(refTokens[i-1].norm, spokenWords[j-1])){ matched[i-1]=1; i--; j--; }
+    else if(dp[i-1][j]>=dp[i][j-1]) i--;
+    else j--;
+  }
+  const matchedCount = matched.reduce((a,b)=>a+b,0);
+  const total = R||1;
+  const pct = Math.round(matchedCount/total*100);
+  const color = pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
+  document.getElementById('covFill').style.width = pct+'%';
+  document.getElementById('covFill').style.background = color;
+  document.getElementById('covPct').textContent = pct+'%';
+  document.getElementById('covPct').style.color = color;
+  const grade = pct>=90?'A':pct>=75?'B':pct>=60?'C':'D';
+  const gc = {A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
+  document.getElementById('gradeBox').textContent = grade;
+  document.getElementById('gradeBox').style.color = gc;
+  drillN++;
+  document.getElementById('sDrill').textContent = '次数: '+drillN;
+  const prev = c._bestScore;
+  if(prev==null || pct>prev){
+    c._bestScore = pct;
+    document.getElementById('sBest').textContent = '最高: '+pct+'%';
+    document.getElementById('histSpan').textContent = prev!=null ? '🌟 新高！' : '';
+  } else {
+    document.getElementById('histSpan').textContent = pct>=75 ? '💪' : '加油！';
+  }
+  renderCardList1();
+  const charResult = {};
+  refTokens.forEach((tok,idx)=>{
+    const cls = matched[idx] ? 'said' : 'missed';
+    for(let p=tok.start;p<tok.end;p++) charResult[p]=cls;
+  });
+  let html='', pos=0;
+  while(pos<text.length){
+    const ch = text[pos];
+    if(ch==='\n'){ html+='<br>'; pos++; continue; }
+    if(ch===' '){ html+=' '; pos++; continue; }
+    let end=pos;
+    while(end<text.length && text[end]!==' ' && text[end]!=='\n') end++;
+    const token = text.slice(pos,end);
+    let cls=null;
+    for(let p=pos;p<end && !cls;p++) cls = charResult[p]||null;
+    html += cls ? '<span class="w '+cls+'">'+esc(token)+'</span>' : esc(token);
+    pos = end;
+  }
+  document.getElementById('cardArea').innerHTML = html;
+  document.getElementById('legendRow').style.display='flex';
+}
+
+function resetView(){ renderPlain(); document.getElementById('legendRow').style.display='none'; }
+
+function clickMk(i){
+  const c = curCard1(); if(!c) return;
+  const el = document.getElementById('cardArea').querySelector('[data-mi="'+i+'"]');
+  if(!el) return;
+  const chunk = c.text.slice(c._masks[i].start, c._masks[i].end);
+  if(el.classList.contains('vis')){ el.className='mk'; el.innerHTML = chunk.replace(/\S/g,'█'); }
+  else { el.className='mk vis'; el.textContent = chunk; }
+}
+
+function onSel(){
+  const c = curCard1(); if(!c) return;
+  setTimeout(()=>{
+    const sel = window.getSelection();
+    if(!sel || sel.rangeCount===0 || sel.isCollapsed){ hidePop(); setMBtn(false); return; }
+    const range = sel.getRangeAt(0);
+    const ca = document.getElementById('cardArea');
+    if(!ca.contains(range.commonAncestorContainer)){ hidePop(); setMBtn(false); return; }
+    const pre = document.createRange();
+    pre.setStart(ca,0); pre.setEnd(range.startContainer, range.startOffset);
+    selS = pre.toString().length; selE = selS + range.toString().length;
+    if(selE<=selS){ hidePop(); setMBtn(false); return; }
+    setMBtn(true);
+    const r = range.getBoundingClientRect();
+    const pop = document.getElementById('pop');
+    pop.style.display='flex';
+    pop.style.left = (r.left+scrollX)+'px';
+    pop.style.top = (r.bottom+scrollY+4)+'px';
+  },10);
+}
+function setMBtn(on){ document.getElementById('maskBtn').disabled=!on; document.getElementById('umBtn').disabled=!on; }
+function hidePop(){ document.getElementById('pop').style.display='none'; }
+function applyMask(){
+  const c = curCard1(); if(!c || selE<=selS) return;
+  if(!c._masks) c._masks=[];
+  const ex = c._masks.find(m=>m.start<=selS && m.end>=selE);
+  if(ex) c._masks = c._masks.filter(m=>m!==ex);
+  else { c._masks = c._masks.filter(m=>m.end<=selS||m.start>=selE); c._masks.push({start:selS,end:selE}); }
+  hidePop(); setMBtn(false); renderPlain();
+  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
+  renderCardList1();
+}
+function clearMask(){
+  const c = curCard1(); if(!c) return;
+  c._masks = (c._masks||[]).filter(m=>!(m.start<selE && m.end>selS));
+  hidePop(); setMBtn(false); renderPlain();
+  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
+  renderCardList1();
+}
+function maskAll(){
+  const c = curCard1(); if(!c) return;
+  const masks = [];
+  const re = /[a-zA-Z0-9'\u00C0-\u024F]+/g;
+  let m;
+  while((m=re.exec(c.text))!==null){ masks.push({start:m.index, end:m.index+m[0].length}); }
+  c._masks = masks;
+  renderPlain();
+  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
+  renderCardList1();
+}
+document.addEventListener('click', e=>{
+  const pop = document.getElementById('pop'), ca = document.getElementById('cardArea');
+  if(pop.style.display==='flex' && !pop.contains(e.target) && !ca.contains(e.target)) hidePop();
+});
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function toggleRec(){ if(isRec) stopRec(); else startRec(); }
+function startRec(){
+  if(!SR){ alert('请使用 Chrome 或 Edge 浏览器'); return; }
+  if(isRec || !curCard1()) return;
+  isRec=true; fullTranscript='';
+  document.getElementById('transcript').textContent='';
+  document.getElementById('transcript').classList.add('listening');
+  document.getElementById('recBtn').classList.add('on');
+  document.getElementById('recBtn').innerHTML='⏹';
+  document.getElementById('transLabel').textContent='录音中...';
+  document.getElementById('recStatus').textContent='●';
+  buildAndStart();
+}
+function buildAndStart(){
+  if(!isRec) return;
+  recog = new SR();
+  recog.lang='en-GB'; recog.continuous=true; recog.interimResults=true;
+  recog.onresult = e => {
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) fullTranscript += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    const box = document.getElementById('transcript');
+    box.textContent = fullTranscript + (interim?'['+interim+']':'');
+    box.scrollTop = box.scrollHeight;
+  };
+  recog.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('SR error:', e.error); };
+  recog.onend = () => { if(isRec) buildAndStart(); };
+  recog.start();
+}
+function stopRec(){
+  if(!isRec) return;
+  isRec=false;
+  if(recog){ try{ recog.abort(); }catch(e){} recog=null; }
+  document.getElementById('recBtn').classList.remove('on');
+  document.getElementById('recBtn').innerHTML='🎙';
+  document.getElementById('transLabel').textContent='点击麦克风开始';
+  document.getElementById('recStatus').textContent='';
+  document.getElementById('transcript').classList.remove('listening');
+  const t = fullTranscript.trim();
+  if(t) scoreAndRender(t);
+}
+function resetScore(){
+  document.getElementById('covFill').style.width='0%';
+  document.getElementById('covPct').textContent='--';
+  document.getElementById('covPct').style.color='var(--mid)';
+  document.getElementById('gradeBox').textContent='--';
+  document.getElementById('gradeBox').style.color='var(--mid)';
+  document.getElementById('histSpan').textContent='';
+}
+
+// ════════════════════════════════
+//  TAB 2 — CONVERSATION MODE
+// ════════════════════════════════
+let isRec2=false, recog2=null, fullTranscript2='';
+let pendingAnswer='';
+
+function selectCard2(i){
+  stopRec2();
+  curIdx2 = i;
+  renderCardList2();
+  const c = cards[i];
+  if(!c) return;
+  document.getElementById('noCard2').style.display='none';
+  document.getElementById('convCardDetail').style.display='block';
+  document.getElementById('convText').textContent = c.text || '';
+  const note = c.note && c.note.trim();
+  if(note){
+    document.getElementById('convNoteLabel').style.display='block';
+    document.getElementById('convNoteText').style.display='block';
+    document.getElementById('convNoteText').textContent = note;
+  } else {
+    document.getElementById('convNoteLabel').style.display='none';
+    document.getElementById('convNoteText').style.display='none';
+  }
+  if(c.dialogs && c.dialogs.length){
+    document.getElementById('dlgToggleRow').style.display='flex';
+    renderDlgRows(c.dialogs);
+  } else {
+    document.getElementById('dlgToggleRow').style.display='none';
+  }
+  dlgOpen = false;
+  document.getElementById('dlgBlock').style.display='none';
+  document.getElementById('dlgToggleBtn').textContent = '▸ 查看对话参考';
+  renderAnswerHist(c);
+  pendingAnswer='';
+  document.getElementById('recTranscript').textContent='';
+  document.getElementById('recTranscript').classList.remove('listening');
+  document.getElementById('saveBtn2').disabled=true;
+  document.getElementById('discardBtn2').disabled=true;
+  document.getElementById('ansLen2').textContent='';
+  document.getElementById('clearAnsBtn').disabled = !(c.answers && c.answers.length);
+  document.getElementById('exportBtn').disabled = false;
+  updateConvStats();
+}
+
+function curCard2(){ return curIdx2>=0 ? cards[curIdx2] : null; }
+
+function renderDlgRows(dialogs){
+  document.getElementById('dlgRows').innerHTML = dialogs.map(d=>{
+    return '<div class="dlg-row"><span class="dlg-tag">'+esc(d.type||'')+'</span><span class="dlg-text">'+esc(d.text||'')+'</span></div>';
+  }).join('');
+}
+
+function toggleDlgBlock(){
+  dlgOpen = !dlgOpen;
+  document.getElementById('dlgBlock').style.display = dlgOpen ? 'block' : 'none';
+  document.getElementById('dlgToggleBtn').textContent = dlgOpen ? '▾ 隐藏对话参考' : '▸ 查看对话参考';
+}
+
+function renderAnswerHist(c){
+  const list = document.getElementById('answerHistList');
+  if(!c.answers || !c.answers.length){
+    list.innerHTML = '<div style="font-size:12px;color:var(--mid);">（尚无回答）</div>';
+    return;
+  }
+  list.innerHTML = c.answers.slice().reverse().map(a=>{
+    const ts = a.timestamp ? new Date(a.timestamp).toLocaleString() : '';
+    return '<div class="answer-entry"><div class="answer-entry-ts">'+esc(ts)+'</div>'+esc(a.text)+'</div>';
+  }).join('');
+}
+
+function toggleRec2(){ if(isRec2) stopRec2(); else startRec2(); }
+function startRec2(){
+  if(!SR){ alert('请使用 Chrome 或 Edge 浏览器'); return; }
+  if(!curCard2()){ alert('请先选择一张卡片'); return; }
+  if(isRec2) return;
+  isRec2=true; fullTranscript2=''; pendingAnswer='';
+  document.getElementById('recTranscript').textContent='';
+  document.getElementById('recTranscript').classList.add('listening');
+  document.getElementById('recBtn2').classList.add('on');
+  document.getElementById('recBtn2').innerHTML='⏹';
+  document.getElementById('recLabel2').textContent='录音中...';
+  document.getElementById('recStatus2').textContent='●';
+  document.getElementById('saveBtn2').disabled=true;
+  document.getElementById('discardBtn2').disabled=true;
+  buildAndStart2();
+}
+function buildAndStart2(){
+  if(!isRec2) return;
+  recog2 = new SR();
+  recog2.lang='en-GB'; recog2.continuous=true; recog2.interimResults=true;
+  recog2.onresult = e => {
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) fullTranscript2 += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    const box = document.getElementById('recTranscript');
+    box.textContent = fullTranscript2 + (interim?'['+interim+']':'');
+    box.scrollTop = box.scrollHeight;
+  };
+  recog2.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('Rec2 error:', e.error); };
+  recog2.onend = () => { if(isRec2) buildAndStart2(); };
+  recog2.start();
+}
+function stopRec2(){
+  if(!isRec2) return;
+  isRec2=false;
+  if(recog2){ try{ recog2.abort(); }catch(e){} recog2=null; }
+  document.getElementById('recBtn2').classList.remove('on');
+  document.getElementById('recBtn2').innerHTML='🎙';
+  document.getElementById('recLabel2').textContent='点击麦克风开始录音';
+  document.getElementById('recStatus2').textContent='';
+  document.getElementById('recTranscript').classList.remove('listening');
+  const t = fullTranscript2.trim();
+  if(t){
+    pendingAnswer = t;
+    const wc = t.split(/\s+/).filter(w=>w).length;
+    document.getElementById('ansLen2').textContent = '共 '+wc+' 词';
+    document.getElementById('saveBtn2').disabled=false;
+    document.getElementById('discardBtn2').disabled=false;
+    document.getElementById('statWords2').textContent = '本次词数: '+wc;
+  }
+}
+
+function saveAnswer(){
+  const c = curCard2(); if(!c || !pendingAnswer) return;
+  if(!c.answers) c.answers=[];
+  c.answers.push({ text: pendingAnswer, timestamp: new Date().toISOString() });
+  renderAnswerHist(c);
+  pendingAnswer='';
+  document.getElementById('recTranscript').textContent='';
+  document.getElementById('saveBtn2').disabled=true;
+  document.getElementById('discardBtn2').disabled=true;
+  document.getElementById('ansLen2').textContent='';
+  document.getElementById('clearAnsBtn').disabled=false;
+  renderCardList2();
+  updateConvStats();
+}
+
+function discardAnswer(){
+  pendingAnswer='';
+  document.getElementById('recTranscript').textContent='';
+  document.getElementById('saveBtn2').disabled=true;
+  document.getElementById('discardBtn2').disabled=true;
+  document.getElementById('ansLen2').textContent='';
+}
+
+function clearAnswers(){
+  const c = curCard2(); if(!c) return;
+  if(!confirm('清空这张卡片的全部回答记录？')) return;
+  c.answers = [];
+  renderAnswerHist(c);
+  document.getElementById('clearAnsBtn').disabled=true;
+  renderCardList2();
+  updateConvStats();
+}
+
+function exportCurrentCard(){
+  const c = curCard2(); if(!c) return;
+  const data = {
+    id: c.id,
+    text: c.text,
+    note: c.note || '',
+    dialogs: c.dialogs || [],
+    highlights: c.highlights || [],
+    answers: c.answers || [],
+    createdAt: c.createdAt || new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const slug = (c.text||'card').slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
+  a.download = 'engcard_' + slug + '_' + c.id + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function updateConvStats(){
+  const total = cards.length;
+  const answered = cards.filter(c=>c.answers && c.answers.length>0).length;
+  document.getElementById('statCards2').textContent = '卡片: ' + total;
+  document.getElementById('statAnswered2').textContent = '已录: ' + answered;
+  document.getElementById('cardCount2').textContent = total ? (total+' 张，已录 '+answered+' 张') : '';
+}
+</script>
+</body>
+</html>

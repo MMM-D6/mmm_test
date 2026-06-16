@@ -1394,6 +1394,7 @@ function migrateState(loaded) {
   if(!Array.isArray(S.habits)) S.habits=[];
   if(!Array.isArray(S.dreamGroups)) S.dreamGroups=[];
   if(!Array.isArray(S.engCards)) S.engCards=[];
+  (S.engCards||[]).forEach(c=>{ if(!Array.isArray(c.answers)) c.answers=[]; if(!Array.isArray(c.dialogs)) c.dialogs=[]; if(!Array.isArray(c.highlights)) c.highlights=[]; });
   if(!S.checkins || typeof S.checkins!=='object') S.checkins={};
   if(!Array.isArray(S.energyTags)) S.energyTags=[];
   if(!S.dayNotes || typeof S.dayNotes!=='object') S.dayNotes={};
@@ -2322,6 +2323,7 @@ function exportEngCard(id){
     note: c.note||'',
     dialogs: c.dialogs||[],
     highlights: c.highlights||[],
+    answers: c.answers||[],
     createdAt: c.createdAt,
     editedAt: c.editedAt||null
   };
@@ -2344,7 +2346,7 @@ function importEngCard(input){
       p = p.filter(c=>c&&c.text);
       if(!p.length){ showToast('未找到有效卡片'); return; }
       if(!S.engCards) S.engCards=[];
-      let added=0;
+      let added=0, answersAdded=0;
       p.forEach(imp=>{
         const exists = S.engCards.find(x=>x.id==imp.id);
         if(exists){
@@ -2352,6 +2354,17 @@ function importEngCard(input){
           exists.text=imp.text; exists.note=imp.note||exists.note;
           exists.dialogs=imp.dialogs||exists.dialogs||[];
           exists.highlights=imp.highlights||exists.highlights||[];
+          if(Array.isArray(imp.answers) && imp.answers.length){
+            if(!Array.isArray(exists.answers)) exists.answers=[];
+            const seen=new Set(exists.answers.map(a=>a.timestamp));
+            imp.answers.forEach(a=>{
+              if(a && a.text && !seen.has(a.timestamp)){
+                exists.answers.push(a);
+                seen.add(a.timestamp);
+                answersAdded++;
+              }
+            });
+          }
           exists.editedAt=new Date().toISOString();
         } else {
           S.engCards.unshift({
@@ -2360,13 +2373,17 @@ function importEngCard(input){
             note: imp.note||'',
             dialogs: imp.dialogs||[],
             highlights: imp.highlights||[],
+            answers: Array.isArray(imp.answers)?imp.answers:[],
             createdAt: imp.createdAt||new Date().toISOString()
           });
           added++;
         }
       });
       saveState(); renderEngCards();
-      showToast('已导入 '+p.length+' 张卡片'+(added<p.length?' ('+( p.length-added)+' 张已更新)':''));
+      let msg='已导入 '+p.length+' 张卡片';
+      if(added<p.length) msg+=' ('+(p.length-added)+' 张已更新)';
+      if(answersAdded>0) msg+=' · 新增 '+answersAdded+' 条回答记录';
+      showToast(msg);
     } catch(err){ showToast('JSON 解析失败: '+err.message); }
     input.value='';
   };
@@ -2508,6 +2525,20 @@ function renderEngCards(){
         row.appendChild(tag); row.appendChild(txt); dlgWrap.appendChild(row);
       });
       wrap.appendChild(dlgWrap);
+    }
+    if(c.answers&&c.answers.length){
+      const ansWrap=document.createElement('div');
+      ansWrap.style.cssText='margin-top:10px;padding:8px 10px;background:#f5fff5;border:1px solid #99cc99;';
+      const ansHdr=document.createElement('div');
+      ansHdr.style.cssText='font-family:var(--font-pixel);font-size:6px;color:#006600;margin-bottom:6px;letter-spacing:1px;';
+      ansHdr.textContent='SPOKEN ANSWERS ('+c.answers.length+')';
+      ansWrap.appendChild(ansHdr);
+      const latest=c.answers[c.answers.length-1];
+      const ansTxt=document.createElement('div');
+      ansTxt.style.cssText='font-family:Arial,serif;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap;';
+      ansTxt.textContent=latest.text;
+      ansWrap.appendChild(ansTxt);
+      wrap.appendChild(ansWrap);
     }
     list.appendChild(wrap);
   });

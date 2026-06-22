@@ -261,6 +261,85 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
 }
 .toast.show{opacity:1;}
 
+/* ── workspace + directory sidebar ── */
+.workspace{flex:1;display:flex;min-height:0;overflow:hidden;}
+.content{min-width:0;}
+
+.sidebar{
+  width:236px;flex-shrink:0;background:var(--gray);
+  border-right:2px solid var(--darker);
+  display:flex;flex-direction:column;min-height:0;
+}
+.sidebar-head{
+  background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;
+  padding:3px 6px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.sidebar-title{font-family:var(--font);font-size:12px;font-weight:bold;}
+.sidebar-toggle{
+  font-family:var(--font);font-size:11px;line-height:1;
+  background:var(--gray);color:#000;
+  border:2px solid;border-color:var(--white) var(--darker) var(--darker) var(--white);
+  cursor:pointer;padding:1px 6px;white-space:nowrap;
+}
+.sidebar-toggle:hover{background:var(--light);}
+.sidebar-toggle:active{border-color:var(--darker) var(--white) var(--white) var(--darker);transform:translate(1px,1px);}
+.sidebar-search{padding:4px;border-bottom:1px solid var(--dark);flex-shrink:0;}
+.sidebar-search input{
+  width:100%;font-family:var(--font);font-size:11px;background:#fff;color:#000;
+  border:2px solid;border-color:var(--darker) var(--white) var(--white) var(--darker);
+  padding:2px 6px;outline:none;
+}
+.sidebar-search input:focus{outline:1px dotted #000;outline-offset:-3px;}
+.sidebar-tree{flex:1;overflow-y:auto;padding:4px 2px 8px;}
+
+.sidebar-rail{
+  width:24px;flex-shrink:0;background:var(--gray);
+  border:none;border-right:2px solid var(--darker);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:6px 0;color:var(--darker);font-family:var(--font);font-size:11px;
+}
+.sidebar-rail:hover{background:var(--light);color:var(--blue);}
+.sidebar-rail .rail-label{writing-mode:vertical-rl;letter-spacing:3px;font-weight:bold;}
+
+/* tree rows */
+.toc-sec{display:flex;align-items:center;gap:2px;padding:2px 2px;margin-top:4px;}
+.toc-sec:first-child{margin-top:0;}
+.toc-caret{
+  font-size:9px;width:14px;height:14px;flex-shrink:0;padding:0;
+  background:none;border:none;cursor:pointer;color:var(--darker);
+  display:flex;align-items:center;justify-content:center;
+}
+.toc-caret:hover{color:var(--blue);}
+.toc-sec-name{
+  font-size:11px;font-weight:bold;color:var(--darker);cursor:pointer;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.toc-sec-name:hover{color:var(--blue);text-decoration:underline;}
+.toc-sec-name.muted{color:var(--dark);font-weight:normal;cursor:default;}
+.toc-sec-name.muted:hover{text-decoration:none;color:var(--dark);}
+.toc-count{font-size:9px;color:var(--dark);flex-shrink:0;padding:0 2px;}
+.toc-task{
+  display:flex;align-items:center;gap:4px;cursor:pointer;
+  padding:2px 4px 2px 18px;font-size:11px;color:#000;
+  white-space:nowrap;overflow:hidden;
+}
+.toc-task:hover{background:var(--blue);color:#fff;}
+.toc-task:hover .toc-dot,.toc-task:hover .toc-msg{color:#fff;}
+.toc-dot{font-size:9px;color:var(--blue);flex-shrink:0;width:10px;text-align:center;}
+.toc-task.done .toc-dot{color:var(--green);}
+.toc-task.done .toc-task-text{text-decoration:line-through;color:var(--dark);}
+.toc-task:hover.done .toc-task-text{color:#fff;}
+.toc-task-text{flex:1;overflow:hidden;text-overflow:ellipsis;}
+.toc-msg{font-size:10px;color:var(--purple);flex-shrink:0;}
+.toc-empty{padding:10px 8px;color:var(--dark);font-size:11px;line-height:1.5;}
+
+/* flash highlight when navigating from the directory */
+.toc-flash{animation:tocflash 1.5s ease-out;}
+@keyframes tocflash{
+  0%,20%{box-shadow:0 0 0 2px var(--red),0 0 0 5px rgba(204,0,0,.35);}
+  100%{box-shadow:0 0 0 0 rgba(204,0,0,0);}
+}
+
 ::-webkit-scrollbar{width:16px;}
 ::-webkit-scrollbar-track{background:var(--gray);}
 ::-webkit-scrollbar-thumb{background:var(--gray);border:2px solid;border-color:var(--white) var(--darker) var(--darker) var(--white);min-height:20px;}
@@ -292,7 +371,6 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   </div>
   <div class="dropdown" id="menu-export">
     <div class="ditem" onclick="exportTemplate()">导出空白模版</div>
-    <div class="ditem" onclick="exportGrown()">导出生长版本</div>
   </div>
 </div>
 
@@ -326,7 +404,22 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   </div>
 </div>
 
-<div class="content" id="content">
+<div class="workspace" id="workspace">
+
+  <aside class="sidebar" id="sidebar" style="display:none;">
+    <div class="sidebar-head">
+      <span class="sidebar-title">目录</span>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="收起目录">◀ 收起</button>
+    </div>
+    <div class="sidebar-search">
+      <input id="tocSearch" placeholder="检索条目..." autocomplete="off"/>
+    </div>
+    <div class="sidebar-tree" id="tocTree"></div>
+  </aside>
+
+  <button class="sidebar-rail" id="sidebarRail" onclick="toggleSidebar()" title="展开目录" style="display:none;">▶<span class="rail-label">目录</span></button>
+
+  <div class="content" id="content">
   <div class="splash" id="splash">
     <div class="splash-title">BOX</div>
     <div class="splash-sub">打开一个盒子，开始一件事</div>
@@ -339,6 +432,7 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
   <div class="add-ap-bar" id="addAPBar" style="display:none;">
     <input class="add-ap-input" id="addAPInput" placeholder="写下下一个行动..."/>
     <button class="pxl-btn primary" onclick="addAP()">加入</button>
+  </div>
   </div>
 </div>
 
@@ -363,7 +457,12 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
     {
       "name": "小标题（可选）",
       "tasks": [
-        { "text": "行动内容", "note": "备注（可选）" }
+        {
+          "text": "行动内容",
+          "note": "备注（可选）",
+          "tags": ["标签（可选）"],
+          "stickerEmoji": "🍅"
+        }
       ]
     }
   ]
@@ -380,6 +479,7 @@ body{background:var(--gray);color:var(--black);font-family:var(--font);font-size
 
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInput" accept=".json" style="display:none;" onchange="onFileSelected(event)"/>
+</div>
 
 <script>
 // ── state ──
@@ -489,9 +589,11 @@ function showProject(){
   list.style.display='flex';list.style.flexDirection='column';list.style.gap='4px';
   document.getElementById('addAPBar').style.display='flex';
   document.getElementById('toolbarWrap').style.display='block';
+  projectOpen=true;
+  applySidebarState();
 }
 function onTitleChange(){S.project=document.getElementById('projTitleInput').value||'未命名项目';updateTitlebar();markDirty();}
-function updateTitlebar(){document.getElementById('titlebarName').textContent='BOX — '+(S.project||'未命名项目')+(dirty?' *':'');}
+function updateTitlebar(){document.getElementById('titlebarName').textContent='BOX - '+(S.project||'未命名项目')+(dirty?' *':'');}
 function markDirty(){dirty=true;updateTitlebar();updateStatus();}
 
 // ── file API ──
@@ -571,15 +673,22 @@ function doImport(){
     if(!data.sections&&!data.tasks){document.getElementById('importMsg').textContent='需要 sections 或 tasks 字段';return;}
     let n=0;
     if(data.project&&(!S.project||S.project==='未命名项目')){S.project=data.project;document.getElementById('projTitleInput').value=S.project;updateTitlebar();}
-    const mkTask=(text,note)=>({id:uid(),type:'task',text,note:note||'',done:false,doneAt:'',createdAt:ts(),collapsed:false,tags:[],msgs:[],stickers:[],stickerEmoji:'🍅'});
+    const mkTask=(t)=>{
+      if(typeof t==='string') t={text:t};
+      t=t||{};
+      return {id:uid(),type:'task',text:t.text||'',note:t.note||'',
+        done:!!t.done,doneAt:t.done?ts():'',createdAt:ts(),collapsed:false,
+        tags:Array.isArray(t.tags)?t.tags.filter(Boolean).map(String):[],
+        msgs:[],stickers:[],stickerEmoji:t.stickerEmoji||'🍅'};
+    };
     const mkSection=(name)=>({id:uid(),type:'section',text:name,createdAt:ts(),collapsed:false});
     if(data.sections){
       data.sections.forEach(sec=>{
         if(sec.name){S.items.push(mkSection(sec.name));n++;}
-        (sec.tasks||[]).forEach(t=>{S.items.push(mkTask(t.text||'',t.note));n++;});
+        (sec.tasks||[]).forEach(t=>{S.items.push(mkTask(t));n++;});
       });
     } else {
-      data.tasks.forEach(t=>{S.items.push(mkTask(t.text||t,t.note));n++;});
+      data.tasks.forEach(t=>{S.items.push(mkTask(t));n++;});
     }
     markDirty();renderList();closeImport();document.getElementById('importTA').value='';toast('已导入 '+n+' 条');
   }catch(e){document.getElementById('importMsg').textContent='JSON 解析失败: '+e.message;}
@@ -730,7 +839,7 @@ function renderList(){
   const list=document.getElementById('apList');if(!list) return;
   if(!S.items.length){
     list.innerHTML='<div style="padding:20px;color:var(--dark);font-size:12px;">还没有任何条目。在下方输入第一条，或导入 SOP。</div>';
-    updateStatus();return;
+    updateStatus();renderToc();return;
   }
 
   // build collapsed set: tasks under a collapsed section are hidden
@@ -783,6 +892,7 @@ function renderList(){
 
   setTimeout(initDrag,0);
   updateStatus();
+  renderToc();
 }
 
 function renderSection(item){
@@ -851,7 +961,7 @@ function initDrag(){
   const list=document.getElementById('apList');
   if(!list) return;
 
-  // dragstart only fires on elements with draggable="true" — the handles
+  // dragstart only fires on elements with draggable="true" - the handles
   list.querySelectorAll('.drag-handle[draggable="true"]').forEach(handle=>{
     handle.addEventListener('dragstart',e=>{
       e.dataTransfer.effectAllowed='move';
@@ -932,6 +1042,111 @@ function tickClock(){
 }
 setInterval(tickClock,1000);tickClock();
 
+// ── directory / table of contents (left sidebar) ──
+let sidebarCollapsed=false, projectOpen=false;
+const tocCollapsed=new Set();
+
+function toggleSidebar(){ sidebarCollapsed=!sidebarCollapsed; applySidebarState(); }
+
+function applySidebarState(){
+  const sb=document.getElementById('sidebar');
+  const rail=document.getElementById('sidebarRail');
+  if(!sb||!rail) return;
+  if(!projectOpen){ sb.style.display='none'; rail.style.display='none'; return; }
+  if(sidebarCollapsed){ sb.style.display='none'; rail.style.display='flex'; }
+  else { sb.style.display='flex'; rail.style.display='none'; }
+}
+
+function toggleTocGroup(id){
+  if(tocCollapsed.has(id)) tocCollapsed.delete(id); else tocCollapsed.add(id);
+  renderToc();
+}
+
+function renderToc(){
+  const tree=document.getElementById('tocTree');
+  if(!tree) return;
+  const q=(document.getElementById('tocSearch')?.value||'').trim().toLowerCase();
+
+  if(!S.items.length){
+    tree.innerHTML='<div class="toc-empty">还没有条目</div>';
+    return;
+  }
+
+  // group tasks under their preceding section
+  const groups=[]; let cur=null;
+  S.items.forEach(it=>{
+    if(it.type==='section'){ cur={section:it,tasks:[]}; groups.push(cur); }
+    else { if(!cur){ cur={section:null,tasks:[]}; groups.push(cur); } cur.tasks.push(it); }
+  });
+
+  const matchTask=t=>{
+    if(!q) return true;
+    const hay=(t.text||'')+' '+(t.note||'')+' '+((t.tags||[]).join(' '))+' '+((t.msgs||[]).map(m=>m.text).join(' '));
+    return hay.toLowerCase().includes(q);
+  };
+  const secMatch=s=> !!s && (s.text||'').toLowerCase().includes(q);
+
+  let html='';
+  groups.forEach(g=>{
+    const sec=g.section;
+    const sm = q ? secMatch(sec) : true;
+    const visTasks = (q && !sm) ? g.tasks.filter(matchTask) : g.tasks;
+    if(q && !sm && visTasks.length===0) return; // nothing in this group matches
+
+    const collapsed = q ? false : (sec ? tocCollapsed.has(sec.id) : false);
+
+    if(sec){
+      const caret = collapsed ? '▶' : '▼';
+      const cnt=g.tasks.length, done=g.tasks.filter(t=>t.done).length;
+      html+=`<div class="toc-sec">`
+        + `<button class="toc-caret" onclick="toggleTocGroup('${sec.id}')" title="折叠/展开">${caret}</button>`
+        + `<span class="toc-sec-name" onclick="gotoItem('${sec.id}')" title="${escHtml(sec.text)}">${escHtml(sec.text)}</span>`
+        + `<span class="toc-count">${done}/${cnt}</span>`
+        + `</div>`;
+    } else if(g.tasks.length){
+      html+=`<div class="toc-sec"><span class="toc-sec-name muted">（未分组）</span></div>`;
+    }
+
+    if(!collapsed){
+      visTasks.forEach(t=>{
+        const dcls=t.done?' done':'';
+        const msg=(t.msgs&&t.msgs.length)?`<span class="toc-msg" title="${t.msgs.length} 条记录">✎</span>`:'';
+        html+=`<div class="toc-task${dcls}" onclick="gotoItem('${t.id}')" title="${escHtml(t.text)}">`
+          + `<span class="toc-dot">${t.done?'✓':'•'}</span>`
+          + `<span class="toc-task-text">${escHtml(t.text||'（空条目）')}</span>`
+          + msg + `</div>`;
+      });
+    }
+  });
+
+  if(html===''){ html='<div class="toc-empty">没有匹配的结果</div>'; }
+  tree.innerHTML=html;
+}
+
+function gotoItem(id){
+  const item=S.items.find(a=>a.id===id);
+  if(!item) return;
+  let needRender=false;
+  // if a task is hidden under a collapsed section, expand that section first
+  if(item.type==='task'){
+    const idx=S.items.indexOf(item);
+    for(let i=idx-1;i>=0;i--){
+      if(S.items[i].type==='section'){
+        if(S.items[i].collapsed){ S.items[i].collapsed=false; markDirty(); needRender=true; }
+        break;
+      }
+    }
+  }
+  if(needRender) renderList();
+  setTimeout(()=>{
+    const el=document.getElementById((item.type==='section'?'sec-':'apc-')+id);
+    if(!el) return;
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+    el.classList.remove('toc-flash'); void el.offsetWidth; el.classList.add('toc-flash');
+    setTimeout(()=>el.classList.remove('toc-flash'),1500);
+  }, needRender?40:0);
+}
+
 // ── export ──
 function exportTemplate(){
   closeAllMenus();
@@ -939,45 +1154,32 @@ function exportTemplate(){
     project:'项目名称',
     sections:[
       {
-        name:'小标题（可选，删掉这行则无标题）',
+        name:'小标题一（可选；删掉 name 这一行即为无标题分组）',
         tasks:[
-          {text:'行动内容',note:'备注（可选）'},
-          {text:'行动内容2'}
+          {
+            text:'行动内容（必填）',
+            note:'备注（可选）',
+            tags:['标签A','标签B'],
+            stickerEmoji:'🍅'
+          },
+          {text:'只写 text 的简单条目'}
+        ]
+      },
+      {
+        name:'小标题二',
+        tasks:[
+          {text:'又一个行动',note:'tags 和 stickerEmoji 都可以省略'}
         ]
       },
       {
         tasks:[
-          {text:'没有小标题的条目直接放这里'}
+          {text:'没有小标题的条目，放进一个没有 name 的分组里'}
         ]
       }
     ]
   };
   download((S.project||'box')+'-template.json',JSON.stringify(tmpl,null,2));
-  toast('模版已导出');
-}
-
-function exportGrown(){
-  closeAllMenus();
-  // rebuild sections structure from items
-  const sections=[];
-  let currentSection=null;
-  S.items.forEach(item=>{
-    if(item.type==='section'){
-      currentSection={name:item.text,tasks:[]};
-      sections.push(currentSection);
-    } else {
-      if(!currentSection){currentSection={tasks:[]};sections.push(currentSection);}
-      currentSection.tasks.push({
-        text:item.text,note:item.note,
-        done:item.done,doneAt:item.doneAt,createdAt:item.createdAt,
-        tags:item.tags,stickerEmoji:item.stickerEmoji,stickers:item.stickers,
-        messages:item.msgs.map(m=>({text:m.text,ts:m.ts}))
-      });
-    }
-  });
-  const g={project:S.project,createdAt:S.createdAt,exportedAt:ts(),sections};
-  download((S.project||'box')+'-grown.json',JSON.stringify(g,null,2));
-  toast('生长版本已导出');
+  toast('空白模版已导出');
 }
 
 function download(filename,text){
@@ -994,6 +1196,11 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('DOMContentLoaded',()=>{
   const pi=document.getElementById('pomoMinInput');
   if(pi) pi.addEventListener('keydown',e=>{if(e.key==='Enter') startPomoCustom();});
+  const tse=document.getElementById('tocSearch');
+  if(tse){
+    tse.addEventListener('input',()=>renderToc());
+    tse.addEventListener('keydown',e=>{if(e.key==='Escape'){tse.value='';renderToc();}});
+  }
 });
 
 updateStatus();

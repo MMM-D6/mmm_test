@@ -13,7 +13,8 @@
 }
 html,body{height:100%;background:var(--gray);font-family:var(--f);font-size:13px;color:#000;overflow:hidden;}
 body{display:flex;flex-direction:column;}
-.tb{background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;font-size:12px;font-weight:bold;padding:3px 8px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;}
+.tb{background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;font-size:12px;font-weight:bold;padding:3px 8px;display:flex;align-items:center;justify-content:space-between;user-select:none;flex-shrink:0;gap:8px;}
+.tb .fname{font-weight:normal;font-size:11px;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .btn{font-family:var(--f);font-size:12px;cursor:pointer;padding:3px 10px;background:var(--gray);color:#000;border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;white-space:nowrap;}
 .btn:hover:not(:disabled){background:var(--light);}
 .btn:active:not(:disabled){border-color:var(--dk) #fff #fff var(--dk);transform:translate(1px,1px);}
@@ -21,12 +22,10 @@ body{display:flex;flex-direction:column;}
 .sbar{background:var(--gray);border-top:2px solid var(--dk);padding:2px 6px;font-size:11px;display:flex;gap:8px;flex-shrink:0;}
 .sp{border:1px solid var(--dk);padding:1px 6px;}
 
-/* setup screen */
-.setup-screen{position:fixed;inset:0;background:var(--gray);z-index:100;display:flex;align-items:center;justify-content:center;}
-.setup-box{width:440px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
-.dropzone{border:3px dashed var(--mid);background:#fff;padding:24px;text-align:center;cursor:pointer;color:var(--mid);transition:all .15s;margin:10px;}
-.dropzone.over{border-color:var(--blue);background:#e8e8ff;color:var(--blue);}
-.dropzone.ok{border-color:#006600;background:#e8ffe8;color:#006600;}
+/* global file toolbar */
+#fileBar{display:flex;align-items:center;gap:5px;padding:5px 8px;background:var(--gray);border-bottom:2px solid var(--dk);flex-shrink:0;flex-wrap:wrap;}
+.bardiv{width:1px;height:18px;background:var(--dk);margin:0 3px;}
+#fileHint{font-size:11px;color:var(--mid);margin-left:4px;}
 
 /* tab bar */
 #tabBar{display:flex;align-items:flex-end;padding:4px 6px 0;gap:2px;background:var(--gray);border-bottom:2px solid var(--dk);flex-shrink:0;}
@@ -34,63 +33,58 @@ body{display:flex;flex-direction:column;}
 .tab.active{background:var(--gray);color:#000;font-weight:bold;z-index:1;}
 .tab:hover:not(.active){background:var(--gray);color:#000;}
 
-#appWrap{display:none;flex-direction:column;flex:1;overflow:hidden;}
+#appWrap{display:flex;flex-direction:column;flex:1;overflow:hidden;}
 .tab-panel{display:none;flex-direction:column;flex:1;overflow:hidden;}
 .tab-panel.active{display:flex;}
+.modeMain{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 
-/* shared card list column */
-.cardCol{width:260px;flex-shrink:0;border-right:2px solid var(--dk);display:flex;flex-direction:column;overflow:hidden;}
-.cardColHdr{background:var(--light);border-bottom:1px solid var(--dk);padding:3px 8px;font-size:11px;font-weight:bold;color:var(--blue);flex-shrink:0;}
-.cardList{flex:1;overflow-y:auto;background:#fff;}
-.cardItem{padding:6px 10px;cursor:pointer;border-bottom:1px solid #ddd;font-size:12px;}
-.cardItem:hover{background:var(--light);}
-.cardItem.active{background:#cce0ff;}
-.ci-meta{font-size:10px;color:var(--mid);margin-bottom:1px;}
-.ci-title{font-weight:bold;color:#000;}
+/* record + capture (shared) */
+.recArea{flex-shrink:0;border-top:2px solid var(--dk);background:var(--gray);padding:6px 8px;display:flex;flex-direction:column;gap:5px;}
+.recRow{display:flex;align-items:center;gap:8px;}
+.recBtn{width:46px;height:46px;border-radius:50%;border:3px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:19px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.recBtn:hover{background:var(--light);}
+.recBtn.on{background:#cc0000;border-color:#fff #600 #600 #fff;color:#fff;}
+.recMeta{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0;}
+.recTitleRow{display:flex;align-items:center;gap:6px;}
+.recLabel{font-size:11px;font-weight:bold;color:var(--blue);}
+.recDot{font-size:11px;color:#cc0000;}
+.meterWrap{display:flex;align-items:center;gap:6px;}
+.meter{flex:1;height:8px;background:#fff;border:2px inset var(--dk);overflow:hidden;}
+.meterFill{height:100%;width:0%;background:var(--blue2);transition:width .05s linear;}
+.sens{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--mid);}
+.sens input[type=range]{width:90px;}
+/* the live transcript box: now full width, taller */
+.transBox{min-height:80px;max-height:240px;overflow-y:auto;padding:7px 12px;font-size:15px;font-family:Arial,sans-serif;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);color:#000;line-height:1.7;white-space:pre-wrap;word-break:break-word;}
+.transBox.listening{border-color:#cc0000;}
+.actRow{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
 
-/* TAB 1: memory mode */
-#toolbar1{padding:5px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:2px solid var(--dk);background:var(--gray);}
-.legend{display:flex;gap:8px;font-size:11px;align-items:center;}
-.ldot{width:11px;height:11px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:2px;}
-#body1{display:flex;flex:1;overflow:hidden;}
-#mem1Main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+/* capture panel (shown after stop) */
+.capPanel{display:none;flex-direction:column;gap:6px;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);background:#f4f4f4;padding:8px 10px;}
+.capHdr{font-family:monospace;font-size:10px;color:var(--blue);letter-spacing:1px;}
+.capAnno{font-size:15px;font-family:Arial,sans-serif;line-height:1.9;color:#000;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #ccc;padding:7px 10px;max-height:240px;overflow-y:auto;}
+.pauseMk{font-family:monospace;font-size:11px;color:#9a6700;background:#fff3cd;border:1px solid #e0c97f;border-radius:2px;padding:0 3px;margin:0 2px;white-space:nowrap;}
+.capStats{display:flex;flex-wrap:wrap;gap:5px;}
+.statChip{font-size:11px;font-family:monospace;background:var(--gray);border:1px solid var(--dk);padding:1px 6px;color:#000;}
+.statChip b{color:var(--blue);}
+.capWarn{font-size:10px;color:var(--mid);line-height:1.5;}
+
+/* mode toolbars + card view */
+/* mode card view */
 #cardWrap{flex:1;overflow-y:auto;background:#fff;border-bottom:3px solid var(--dk);}
-#cardArea{padding:14px 18px 8px;line-height:2.4;font-size:17px;font-family:Arial,sans-serif;white-space:pre-wrap;word-break:break-word;cursor:text;user-select:text;}
-#noteArea{padding:4px 18px 8px;font-size:12px;color:var(--mid);border-top:1px dashed var(--mid);background:#fafafa;white-space:pre-wrap;display:none;}
-#noCard1{color:var(--mid);font-size:13px;padding:20px;}
-#transWrap{flex-shrink:0;display:flex;flex-direction:column;background:var(--gray);}
-#transHeader{display:flex;align-items:center;gap:8px;padding:5px 8px;border-top:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
-#recBtn{width:48px;height:48px;border-radius:50%;border:3px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-#recBtn:hover{background:var(--light);}
-#recBtn.on{background:#cc0000;border-color:#fff #600 #600 #fff;}
-#transInfo{display:flex;flex-direction:column;gap:3px;flex:1;}
-#scoreRow{display:flex;align-items:center;gap:8px;font-size:12px;}
-#covBar{flex:1;height:10px;background:#fff;border:2px inset var(--dk);}
-#covFill{height:100%;background:var(--blue);width:0%;transition:width .4s;}
-#covPct{font-weight:bold;font-family:monospace;width:38px;text-align:right;color:var(--mid);}
-#gradeBox{font-weight:bold;font-size:20px;width:24px;font-family:monospace;color:var(--mid);}
-#histSpan{font-size:11px;color:var(--mid);}
-#transcript{min-height:52px;max-height:110px;overflow-y:auto;padding:5px 10px;font-size:14px;font-family:Arial,sans-serif;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);margin:0 8px 6px;color:#000;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
-#transcript.listening{border-color:#cc0000;}
-.w{border-radius:2px;padding:0 2px;}
-.w.said{background:#cce0ff;color:#003380;}
-.w.missed{background:#e2e3e5;color:#383d41;text-decoration:line-through;}
+#cardArea{padding:16px 22px 10px;line-height:2.4;font-size:18px;font-family:Arial,sans-serif;white-space:pre-wrap;word-break:break-word;cursor:text;user-select:text;}
+#noteArea{padding:4px 22px 12px;font-size:12px;color:var(--mid);border-top:1px dashed var(--mid);background:#fafafa;white-space:pre-wrap;display:none;}
+.noSel{color:var(--mid);font-size:13px;padding:24px;line-height:1.8;}
 .mk{background:#909090;color:transparent;cursor:pointer;border-radius:2px;padding:0 2px;}
 .mk.vis{background:#c8c8ff;color:#000;}
-#pop{position:fixed;display:none;flex-direction:column;gap:3px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;padding:4px;z-index:200;}
+#pop{position:fixed;display:none;flex-direction:column;gap:3px;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;padding:4px;z-index:300;}
 
-/* TAB 2: conversation mode */
-#toolbar2{padding:5px 8px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:2px solid var(--dk);background:var(--gray);}
-#body2{display:flex;flex:1;overflow:hidden;}
-#convMain{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-#convCardView{flex:1;overflow-y:auto;background:#fff;padding:14px 18px;}
-#noCard2{color:var(--mid);font-size:13px;}
-#convTextLabel{font-size:10px;font-weight:bold;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
-#convText{font-size:16px;font-family:Arial,sans-serif;line-height:1.8;color:#000;white-space:pre-wrap;word-break:break-word;}
+/* conversation specifics */
+#convCardView{flex:1;overflow-y:auto;background:#fff;padding:16px 22px;border-bottom:3px solid var(--dk);}
+.convLabel{font-size:10px;font-weight:bold;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+#convText{font-size:17px;font-family:Arial,sans-serif;line-height:1.8;color:#000;white-space:pre-wrap;word-break:break-word;}
 #convNoteLabel{font-size:10px;font-weight:bold;color:var(--mid);text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px;display:none;}
-#convNoteText{font-size:12px;font-family:Arial,sans-serif;color:var(--mid);white-space:pre-wrap;border-left:3px solid var(--mid);padding-left:8px;line-height:1.6;display:none;}
+#convNoteText{font-size:13px;font-family:Arial,sans-serif;color:var(--mid);white-space:pre-wrap;border-left:3px solid var(--mid);padding-left:8px;line-height:1.6;display:none;}
 #dlgToggleRow{margin-top:14px;display:none;align-items:center;gap:8px;}
-#dlgToggleBtn{font-size:11px;}
 #dlgBlock{margin-top:8px;padding:8px 10px;background:#f0f0f0;border:1px solid #ccc;display:none;}
 #dlgBlockHdr{font-family:monospace;font-size:10px;color:#808080;margin-bottom:6px;letter-spacing:1px;}
 .dlg-row{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;}
@@ -99,310 +93,446 @@ body{display:flex;flex-direction:column;}
 #answerHistSection{margin-top:14px;border-top:1px dashed var(--mid);padding-top:10px;}
 #answerHistLabel{font-size:10px;font-weight:bold;color:#006600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
 .answer-entry{font-size:13px;font-family:Arial,sans-serif;color:#333;line-height:1.7;white-space:pre-wrap;background:#f5fff5;border:1px solid #99cc99;padding:6px 10px;margin-bottom:6px;}
-.answer-entry-ts{font-size:10px;color:var(--mid);margin-bottom:3px;}
-#recArea{flex-shrink:0;border-top:2px solid var(--dk);background:var(--gray);padding:6px 8px;display:flex;flex-direction:column;gap:5px;}
-#recRow{display:flex;align-items:center;gap:8px;}
-#recBtn2{width:44px;height:44px;border-radius:50%;border:3px solid;border-color:#fff var(--dk) var(--dk) #fff;background:var(--gray);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-#recBtn2:hover{background:var(--light);}
-#recBtn2.on{background:#cc0000;border-color:#fff #600 #600 #fff;}
-#recMeta{flex:1;display:flex;flex-direction:column;gap:2px;}
-#recLabel2{font-size:11px;font-weight:bold;color:var(--blue);}
-#recHint2{font-size:11px;color:var(--mid);}
-#recTranscript{min-height:44px;max-height:90px;overflow-y:auto;padding:5px 10px;font-size:13px;font-family:Arial,sans-serif;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);color:#000;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
-#recTranscript.listening{border-color:#cc0000;}
-#actRow2{display:flex;gap:5px;align-items:center;}
+.answer-entry-ts{font-size:10px;color:var(--mid);margin-bottom:3px;display:flex;justify-content:space-between;gap:8px;}
+.ae-del{color:#c0392b;cursor:pointer;}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:500;padding:12px;}
+.overlay.open{display:flex;}
+.modal{width:560px;max-width:100%;max-height:92vh;overflow-y:auto;background:var(--gray);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;}
+.modalBody{padding:12px;display:flex;flex-direction:column;gap:10px;}
+.formRow{display:flex;flex-direction:column;gap:4px;}
+.formLabel{font-size:12px;font-weight:bold;color:#000;}
+.ta{width:100%;font-family:Arial,sans-serif;font-size:15px;color:#111;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);padding:6px 8px;line-height:1.6;resize:vertical;}
+.dlgEditRow{display:flex;gap:6px;align-items:flex-start;}
+.dlgEditRow input{font-family:var(--f);font-size:13px;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);padding:3px 5px;flex-shrink:0;width:78px;}
+.dlgEditRow textarea{flex:1;font-family:Arial,sans-serif;font-size:14px;color:#111;background:#fff;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);padding:4px 6px;resize:vertical;}
+.modalBtns{display:flex;justify-content:flex-end;gap:6px;padding-top:4px;}
+.dlgEmpty{font-size:12px;color:var(--mid);padding:2px 0;}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);background:#000080;color:#fff;font-size:12px;padding:7px 14px;border:2px solid;border-color:#fff #000040 #000040 #fff;z-index:900;display:none;max-width:80%;text-align:center;}
 </style>
 </head>
 <body>
 
-<!-- SETUP -->
-<div id="setup" class="setup-screen">
-  <div class="setup-box">
-    <div class="tb">⚓ Anchor</div>
-    <div style="padding:10px;display:flex;flex-direction:column;gap:6px;">
-      <div id="dropzone" class="dropzone" onclick="document.getElementById('fi').click()">
-        <div style="font-size:24px;margin-bottom:6px;">📄</div>
-        <div>拖入 <code>.json</code> 卡片，或点击选择</div>
-        <div style="font-size:11px;margin-top:3px;color:#808080;">支持主程序导出的英语卡片，单张或数组均可</div>
-      </div>
-      <input type="file" id="fi" accept=".json" style="display:none;" onchange="onFI(this)">
-      <div id="impMsg" style="font-size:11px;color:#cc0000;min-height:14px;"></div>
-    </div>
-  </div>
+<div class="tb">
+  <span>⚓ Anchor</span>
+  <span class="fname" id="fname">未打开文件</span>
 </div>
 
-<!-- MAIN APP -->
+<!-- TOP TOOLBAR (file + mode-specific actions) -->
+<div id="fileBar">
+  <button class="btn" onclick="newCard()">📝 新建</button>
+  <button class="btn" onclick="openFileAPI()">📂 打开</button>
+  <button class="btn" id="saveBtn" onclick="saveFileAPI()">💾 保存</button>
+  <button class="btn" id="saveAsBtn" onclick="saveAsFileAPI()">另存为</button>
+  <button class="btn" id="editBtn" onclick="editCurrentCard()">✎ 编辑</button>
+  <input type="file" id="fileInput" accept=".json" style="display:none;" onchange="onFileSelected(this)">
+  <span class="bardiv"></span>
+  <span id="maskTools" style="display:flex;gap:5px;align-items:center;">
+    <button class="btn" onclick="maskAll()">全遮蔽</button>
+    <button class="btn" onclick="clearAllMasks()">清除遮蔽</button>
+  </span>
+  <span id="convTools" style="display:none;gap:5px;align-items:center;">
+    <button class="btn" id="clearAnsBtn" onclick="clearAnswers()" style="color:#cc0000;">清空回答历史</button>
+  </span>
+  <span id="fileHint"></span>
+</div>
+
+<div id="tabBar">
+  <div class="tab active" id="tab1" onclick="switchTab(1)">📖 记忆模式</div>
+  <div class="tab" id="tab2" onclick="switchTab(2)">🗣 对话模式</div>
+</div>
+
 <div id="appWrap">
-  <div class="tb">
-    <span>⚓ Anchor</span>
-    <button class="btn" style="font-size:11px;padding:1px 7px;background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.4) rgba(0,0,80,.4) rgba(0,0,80,.4) rgba(255,255,255,.4);" onclick="backToSetup()">◀ 重新导入</button>
-  </div>
 
-  <div id="tabBar">
-    <div class="tab active" id="tab1" onclick="switchTab(1)">📖 记忆模式</div>
-    <div class="tab" id="tab2" onclick="switchTab(2)">🗣 对话模式</div>
-  </div>
-
-  <!-- TAB 1: MEMORY -->
+  <!-- TAB 1: MEMORY (masking scaffold + capture) -->
   <div class="tab-panel active" id="panel1">
-    <div id="toolbar1">
-      <span style="font-size:11px;font-weight:bold;color:var(--blue);">遮蔽:</span>
-      <button class="btn" id="maskBtn" onclick="applyMask()" disabled>▓ 划选</button>
-      <button class="btn" id="umBtn" onclick="clearMask()" disabled style="color:#cc0000;">✕ 取消</button>
-      <button class="btn" onclick="maskAll()">▓ 全遮蔽</button>
-      <button class="btn" onclick="resetView()">↺ 重置</button>
-      <div id="legendRow" style="display:none;margin-left:6px;" class="legend">
-        <span><span class="ldot" style="background:#cce0ff;border:1px solid #003380;"></span>说了</span>
-        <span><span class="ldot" style="background:#e2e3e5;border:1px solid #383d41;"></span>漏读</span>
+    <div class="modeMain">
+      <div id="cardWrap">
+        <div class="noSel" id="noCard1">还没有卡片。点「新建」或「打开」开始。</div>
+        <div id="cardArea" style="display:none;" onmouseup="onSel()" ontouchend="onSel()"></div>
+        <div id="noteArea"></div>
       </div>
-    </div>
-    <div id="body1">
-      <div class="cardCol">
-        <div class="cardColHdr">卡片列表</div>
-        <div class="cardList" id="cardList1"></div>
-      </div>
-      <div id="mem1Main">
-        <div id="cardWrap">
-          <div id="noCard1">从左侧选择一张卡片开始背诵</div>
-          <div id="cardArea" style="display:none;" onmouseup="onSel()" ontouchend="onSel()"></div>
-          <div id="noteArea"></div>
-        </div>
-        <div id="transWrap">
-          <div id="transHeader">
-            <div id="recBtn" onclick="toggleRec()">🎙</div>
-            <div id="transInfo">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span id="transLabel" style="font-size:11px;font-weight:bold;color:var(--blue);">点击麦克风开始</span>
-                <span id="recStatus" style="font-size:11px;color:#cc0000;"></span>
-              </div>
-              <div id="scoreRow">
-                <span style="font-size:11px;color:var(--mid);">覆盖</span>
-                <div id="covBar"><div id="covFill"></div></div>
-                <span id="covPct">--</span>
-                <span id="gradeBox">--</span>
-                <span id="histSpan"></span>
-              </div>
+      <div class="recArea">
+        <div class="recRow">
+          <div class="recBtn" id="recBtn1" onclick="toggleRec(1)">🎙</div>
+          <div class="recMeta">
+            <div class="recTitleRow">
+              <span class="recLabel" id="recLabel1">点击麦克风开始</span>
+              <span class="recDot" id="recDot1"></span>
+            </div>
+            <div class="meterWrap">
+              <span style="font-size:10px;color:var(--mid);">音量</span>
+              <div class="meter"><div class="meterFill" id="meter1"></div></div>
+              <div class="sens">门槛<input type="range" id="sens1" min="4" max="30" value="12" oninput="setSens(1,this.value)"></div>
             </div>
           </div>
-          <div id="transcript"></div>
+        </div>
+        <div class="transBox" id="transBox1"></div>
+        <div class="capPanel" id="capPanel1">
+          <div class="capHdr">本次口述 · 带停顿标记</div>
+          <div class="capAnno" id="capAnno1"></div>
+          <div class="capStats" id="capStats1"></div>
+          <div class="capWarn">停顿与重复由程序粗略检测,识别引擎可能已清理部分重复词与填充词,数据仅供 Claude 参考。</div>
+          <div class="actRow">
+            <button class="btn" id="copyBtn1" onclick="copyForClaude(1)">📋 复制给 Claude</button>
+            <button class="btn" id="clearCapBtn1" onclick="clearCapture(1)" style="color:#cc0000;">✕ 清除</button>
+          </div>
         </div>
       </div>
     </div>
     <div class="sbar">
-      <div class="sp" id="sMask">遮蔽: 0</div>
-      <div class="sp" id="sDrill">次数: 0</div>
-      <div class="sp" id="sBest">最高: --</div>
+      <div class="sp" id="sMask1">遮蔽: 0</div>
+      <div class="sp" id="sState1">就绪</div>
     </div>
   </div>
 
-  <!-- TAB 2: CONVERSATION -->
+  <!-- TAB 2: CONVERSATION (free expression + capture) -->
   <div class="tab-panel" id="panel2">
-    <div id="toolbar2">
-      <button class="btn" id="exportBtn" onclick="exportCurrentCard()" disabled>💾 导出此卡片（含回答）</button>
-      <button class="btn" id="clearAnsBtn" onclick="clearAnswers()" disabled style="color:#cc0000;">✕ 清空回答历史</button>
-      <span style="font-size:11px;color:var(--mid);margin-left:4px;" id="cardCount2"></span>
-    </div>
-    <div id="body2">
-      <div class="cardCol">
-        <div class="cardColHdr">情境卡片</div>
-        <div class="cardList" id="cardList2"></div>
+    <div class="modeMain">
+      <div id="convCardView">
+        <div class="noSel" id="noCard2">还没有卡片。点「新建」或「打开」开始。</div>
+        <div id="convCardDetail" style="display:none;">
+          <div class="convLabel">情境</div>
+          <div id="convText"></div>
+          <div id="convNoteLabel">背景笔记</div>
+          <div id="convNoteText"></div>
+          <div id="dlgToggleRow">
+            <button class="btn" id="dlgToggleBtn" onclick="toggleDlgBlock()">▸ 查看对话参考</button>
+          </div>
+          <div id="dlgBlock">
+            <div id="dlgBlockHdr">DIALOGUE REFERENCE</div>
+            <div id="dlgRows"></div>
+          </div>
+          <div id="answerHistSection">
+            <div id="answerHistLabel">回答记录</div>
+            <div id="answerHistList"></div>
+          </div>
+        </div>
       </div>
-      <div id="convMain">
-        <div id="convCardView">
-          <div id="noCard2">从左侧选择情境卡片</div>
-          <div id="convCardDetail" style="display:none;">
-            <div id="convTextLabel">情境</div>
-            <div id="convText"></div>
-            <div id="convNoteLabel">背景笔记</div>
-            <div id="convNoteText"></div>
-            <div id="dlgToggleRow">
-              <button class="btn" id="dlgToggleBtn" onclick="toggleDlgBlock()">▸ 查看对话参考</button>
+      <div class="recArea">
+        <div class="recRow">
+          <div class="recBtn" id="recBtn2" onclick="toggleRec(2)">🎙</div>
+          <div class="recMeta">
+            <div class="recTitleRow">
+              <span class="recLabel" id="recLabel2">点击麦克风开始</span>
+              <span class="recDot" id="recDot2"></span>
             </div>
-            <div id="dlgBlock">
-              <div id="dlgBlockHdr">DIALOGUE REFERENCE</div>
-              <div id="dlgRows"></div>
-            </div>
-            <div id="answerHistSection">
-              <div id="answerHistLabel">回答记录</div>
-              <div id="answerHistList"></div>
+            <div class="meterWrap">
+              <span style="font-size:10px;color:var(--mid);">音量</span>
+              <div class="meter"><div class="meterFill" id="meter2"></div></div>
+              <div class="sens">门槛<input type="range" id="sens2" min="4" max="30" value="12" oninput="setSens(2,this.value)"></div>
             </div>
           </div>
         </div>
-        <div id="recArea">
-          <div id="recRow">
-            <div id="recBtn2" onclick="toggleRec2()">🎙</div>
-            <div id="recMeta">
-              <div style="display:flex;align-items:center;gap:6px;">
-                <span id="recLabel2">点击麦克风开始录音</span>
-                <span id="recStatus2" style="font-size:11px;color:#cc0000;"></span>
-              </div>
-              <div id="recHint2">自由口述回应这个情境，不需要逐句对照</div>
-            </div>
-          </div>
-          <div id="recTranscript"></div>
-          <div id="actRow2">
-            <button class="btn" id="saveBtn2" onclick="saveAnswer()" disabled style="font-size:11px;">✓ 保存此回答</button>
-            <button class="btn" id="discardBtn2" onclick="discardAnswer()" disabled style="font-size:11px;color:#cc0000;">✕ 丢弃</button>
-            <span id="ansLen2" style="font-size:11px;color:var(--mid);margin-left:4px;"></span>
+        <div class="transBox" id="transBox2"></div>
+        <div class="capPanel" id="capPanel2">
+          <div class="capHdr">本次回答 · 带停顿标记</div>
+          <div class="capAnno" id="capAnno2"></div>
+          <div class="capStats" id="capStats2"></div>
+          <div class="capWarn">停顿与重复由程序粗略检测,识别引擎可能已清理部分重复词与填充词,数据仅供 Claude 参考。</div>
+          <div class="actRow">
+            <button class="btn" id="saveAnsBtn2" onclick="saveAnswer()">✓ 保存回答</button>
+            <button class="btn" id="copyBtn2" onclick="copyForClaude(2)">📋 复制给 Claude</button>
+            <button class="btn" id="discardBtn2" onclick="clearCapture(2)" style="color:#cc0000;">✕ 丢弃</button>
           </div>
         </div>
       </div>
     </div>
     <div class="sbar">
-      <div class="sp" id="statCards2">卡片: 0</div>
-      <div class="sp" id="statAnswered2">已录: 0</div>
-      <div class="sp" id="statWords2">本次词数: --</div>
+      <div class="sp" id="statAnswered2">回答: 0</div>
+      <div class="sp" id="sState2">就绪</div>
     </div>
   </div>
 </div>
 
+<!-- mask selection popup -->
 <div id="pop">
   <button class="btn" onclick="applyMask()">▓ 遮蔽</button>
   <button class="btn" onclick="clearMask()" style="color:#cc0000;">✕ 取消</button>
 </div>
 
+<!-- card editor modal -->
+<div class="overlay" id="cardModal">
+  <div class="modal">
+    <div class="tb">
+      <span id="cardModalTitle">新建卡片</span>
+      <button class="btn" style="font-size:11px;padding:1px 7px;" onclick="closeCardModal()">✕</button>
+    </div>
+    <div class="modalBody">
+      <input type="hidden" id="editCardId">
+      <div class="formRow">
+        <label class="formLabel">正文 / 情境（句子或段落）</label>
+        <textarea class="ta" id="fText" rows="5" placeholder="输入英文句子、段落,或一个对话情境..."></textarea>
+      </div>
+      <div class="formRow">
+        <label class="formLabel">笔记（可选）</label>
+        <textarea class="ta" id="fNote" rows="2" placeholder="背景、提示,随便写..." style="font-size:14px;"></textarea>
+      </div>
+      <div class="formRow">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <label class="formLabel" style="margin:0;">对话条目（可选）</label>
+          <button class="btn" style="font-size:11px;padding:1px 8px;" onclick="dlgAddRow()">+ 添加</button>
+        </div>
+        <div id="dlgEditRows" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div class="dlgEmpty" id="dlgEditEmpty">尚无对话条目</div>
+      </div>
+      <div class="modalBtns">
+        <button class="btn" onclick="closeCardModal()">取消</button>
+        <button class="btn" onclick="saveCard()" style="font-weight:bold;color:var(--blue);">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
 <script>
 'use strict';
 
-// ════════════════════════════════
-//  SHARED STATE — cards imported once, used by both tabs
-// ════════════════════════════════
-let cards = [];      // raw imported card objects: {id,text,note,dialogs,highlights,answers}
-let curIdx1 = -1;     // selected card index for memory mode
-let curIdx2 = -1;     // selected card index for conversation mode
+// ==================================================
+//  SINGLE-CARD MODEL
+//  Anchor is a plugin: no database, one card per session.
+//  Persistence is local files (File System Access API),
+//  matching the design used in the box plugin. The saved
+//  file is a plain engCard JSON, so the main program can
+//  import it directly. Anchor-internal fields (prefixed _)
+//  are stripped on save.
+// ==================================================
+let card = null;        // the single card object, or null
+let fileHandle = null;  // FileSystemFileHandle for the open file, or null
+let openName = '';      // display name of the opened file (works even without a writable handle)
+let dirty = false;
 let activeTab = 1;
 let dlgOpen = false;
-
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-// ── import ──
-const dz = document.getElementById('dropzone');
-dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('over');});
-dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
-dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);});
-function onFI(inp){ if(inp.files[0]) readFile(inp.files[0]); }
-
-function readFile(f){
-  const r = new FileReader();
-  r.onload = e => {
-    try {
-      let p = JSON.parse(e.target.result);
-      if(!Array.isArray(p)) p = [p];
-      p = p.filter(c => c && typeof c.text === 'string' && c.text.trim());
-      if(!p.length){ document.getElementById('impMsg').textContent = '未找到有效卡片（需要 text 字段）'; return; }
-      p.forEach((c,i) => {
-        if(!c.id) c.id = Date.now()+i;
-        if(!Array.isArray(c.dialogs)) c.dialogs = [];
-        if(!Array.isArray(c.highlights)) c.highlights = [];
-        if(!Array.isArray(c.answers)) c.answers = [];
-        c.note = c.note || '';
-        c._masks = []; // memory-mode masks live only inside Anchor, never exported back
-        c._maskHidden = {};
-      });
-      cards = p;
-      dz.classList.add('ok');
-      dz.innerHTML = '<div style="font-size:22px;margin-bottom:4px;">✓</div><div>已载入 '+p.length+' 张卡片</div>';
-      document.getElementById('impMsg').textContent='';
-      launchApp();
-    } catch(err) {
-      document.getElementById('impMsg').textContent = 'JSON 解析失败: ' + err.message;
-    }
-  };
-  r.readAsText(f);
-}
-
-function launchApp(){
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('appWrap').style.display = 'flex';
-  renderCardList1();
-  renderCardList2();
-  switchTab(1);
-  if(cards.length){ selectCard1(0); }
-  updateConvStats();
-}
-
-function backToSetup(){
-  stopRec(); stopRec2();
-  document.getElementById('appWrap').style.display = 'none';
-  document.getElementById('setup').style.display = 'flex';
-}
-
-function switchTab(n){
-  activeTab = n;
-  document.getElementById('tab1').classList.toggle('active', n===1);
-  document.getElementById('tab2').classList.toggle('active', n===2);
-  document.getElementById('panel1').classList.toggle('active', n===1);
-  document.getElementById('panel2').classList.toggle('active', n===2);
-}
-
-// ════════════════════════════════
-//  CARD LISTS (shared rendering helper, separate selection state per tab)
-// ════════════════════════════════
-function cardLabel(c){
-  return (c.text||'').slice(0,32) + ((c.text||'').length>32?'…':'');
-}
-
-function renderCardList1(){
-  const list = document.getElementById('cardList1');
-  if(!cards.length){ list.innerHTML = '<div style="padding:12px;color:var(--mid);font-size:12px;">尚未导入</div>'; return; }
-  list.innerHTML = cards.map((c,i)=>{
-    const maskCount = (c._masks||[]).length;
-    return '<div class="cardItem'+(i===curIdx1?' active':'')+'" onclick="selectCard1('+i+')">'
-      +'<div class="ci-meta">遮蔽 '+maskCount+(c._bestScore!=null?(' · 最高 '+c._bestScore+'%'):'')+'</div>'
-      +'<div class="ci-title">'+esc(cardLabel(c))+'</div>'
-      +'</div>';
-  }).join('');
-}
-
-function renderCardList2(){
-  const list = document.getElementById('cardList2');
-  if(!cards.length){ list.innerHTML = '<div style="padding:12px;color:var(--mid);font-size:12px;">尚未导入</div>'; return; }
-  list.innerHTML = cards.map((c,i)=>{
-    const answered = c.answers && c.answers.length > 0;
-    const dot = answered ? ' <span style="color:#006600;">✓</span>' : '';
-    return '<div class="cardItem'+(i===curIdx2?' active':'')+'" onclick="selectCard2('+i+')">'
-      +'<div class="ci-meta">'+(c.dialogs.length?('对话 '+c.dialogs.length+' 条'):'无对话参考')+dot+'</div>'
-      +'<div class="ci-title">'+esc(cardLabel(c))+'</div>'
-      +'</div>';
-  }).join('');
-}
-
-// ════════════════════════════════
-//  TAB 1 — MEMORY MODE
-// ════════════════════════════════
+let _dlgRows = [];      // temp dialog rows in the editor
 let selS=0, selE=0;
-let drillN=0;
-let isRec=false, recog=null, fullTranscript='';
 
-function selectCard1(i){
-  stopRec();
-  curIdx1 = i;
-  renderCardList1();
-  const c = cards[i];
-  if(!c){ return; }
-  document.getElementById('noCard1').style.display='none';
-  document.getElementById('cardArea').style.display='block';
-  drillN = 0;
-  document.getElementById('sMask').textContent = '遮蔽: ' + (c._masks||[]).length;
-  document.getElementById('sDrill').textContent = '次数: 0';
-  document.getElementById('sBest').textContent = c._bestScore!=null ? ('最高: '+c._bestScore+'%') : '最高: --';
-  document.getElementById('legendRow').style.display='none';
-  const na = document.getElementById('noteArea');
-  if(c.note && c.note.trim()){ na.textContent = '📝 ' + c.note; na.style.display='block'; }
-  else na.style.display='none';
-  resetScore();
-  renderPlain();
-  document.getElementById('transcript').textContent='';
-  document.getElementById('transcript').classList.remove('listening');
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let _idSeed = 0;
+function newId(){ return Date.now() + (_idSeed++); }
+
+function normalizeCard(c){
+  if(c.id==null) c.id = newId();
+  if(!Array.isArray(c.dialogs)) c.dialogs = [];
+  if(!Array.isArray(c.highlights)) c.highlights = [];
+  if(!Array.isArray(c.answers)) c.answers = [];
+  if(typeof c.note!=='string') c.note = '';
+  if(!Array.isArray(c._masks)) c._masks = [];   // session-only scaffold, never written to file
+  if(!c.createdAt) c.createdAt = new Date().toISOString();
+  return c;
+}
+// strip anchor-internal fields so the file matches the main program shape
+function cleanCard(c){
+  const out = {};
+  Object.keys(c).forEach(k=>{ if(k[0]!=='_') out[k]=c[k]; });
+  out.note = c.note||'';
+  out.dialogs = c.dialogs||[];
+  out.highlights = c.highlights||[];
+  out.answers = c.answers||[];
+  return out;
 }
 
-function curCard1(){ return curIdx1>=0 ? cards[curIdx1] : null; }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display='block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>{ t.style.display='none'; }, 2600);
+}
+
+function markDirty(){ dirty = true; updateTitle(); }
+function updateTitle(){
+  const name = fileHandle ? fileHandle.name : (openName || (card ? '未保存的新卡片' : '未打开文件'));
+  document.getElementById('fname').textContent = name + (dirty && card ? ' *' : '');
+}
+
+// ==================================================
+//  FILE: open / save / save-as  (File System Access API,
+//  with hidden-input + download fallback, like box.html)
+// ==================================================
+function newCard(){
+  if(!confirmDiscard()) return;
+  document.getElementById('editCardId').value = '';
+  document.getElementById('cardModalTitle').textContent = '新建卡片';
+  document.getElementById('fText').value = '';
+  document.getElementById('fNote').value = '';
+  _dlgRows = [];
+  renderDlgEditRows();
+  document.getElementById('cardModal').classList.add('open');
+  setTimeout(()=>document.getElementById('fText').focus(), 60);
+}
+
+async function openFileAPI(){
+  if(!confirmDiscard()) return;
+  if(window.showOpenFilePicker){
+    try{
+      const [fh] = await window.showOpenFilePicker({types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
+      fileHandle = fh;
+      loadFromJSON(await (await fh.getFile()).text(), fh.name);
+    }catch(e){ if(e.name!=='AbortError') fallbackOpen(); }
+  } else fallbackOpen();
+}
+function fallbackOpen(){ document.getElementById('fileInput').click(); }
+function onFileSelected(input){
+  const f = input.files[0]; if(!f) return;
+  fileHandle = null; // plain input gives no writable handle; save will prompt save-as
+  const r = new FileReader();
+  r.onload = ev => loadFromJSON(ev.target.result, f.name);
+  r.readAsText(f);
+  input.value='';
+}
+
+function loadFromJSON(text, filename){
+  try{
+    let data = JSON.parse(text);
+    if(Array.isArray(data)){
+      const valid = data.filter(c=>c && typeof c.text==='string' && c.text.trim());
+      if(!valid.length) throw new Error('文件里没有有效卡片');
+      if(valid.length>1) toast('文件含 '+valid.length+' 张,只载入第一张');
+      data = valid[0];
+    }
+    if(!data || typeof data.text!=='string' || !data.text.trim()) throw new Error('需要 text 字段');
+    card = normalizeCard(data);
+    dirty = false;
+    openName = filename || '';
+    curIdxReset();
+    renderAll();
+    toast('已打开: '+(filename||'卡片'));
+  }catch(err){ alert('文件读取失败: '+err.message); }
+}
+
+async function saveFileAPI(){
+  if(!card){ toast('还没有卡片可保存'); return; }
+  if(fileHandle) await doSave(fileHandle);
+  else await saveAsFileAPI();
+}
+async function saveAsFileAPI(){
+  if(!card){ toast('还没有卡片可保存'); return; }
+  if(window.showSaveFilePicker){
+    try{
+      const fh = await window.showSaveFilePicker({suggestedName: suggestName(), types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
+      fileHandle = fh;
+      await doSave(fh);
+    }catch(e){ if(e.name!=='AbortError') fallbackSave(); }
+  } else fallbackSave();
+}
+async function doSave(fh){
+  try{
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(cleanCard(card), null, 2));
+    await w.close();
+    dirty = false; updateTitle();
+    toast('已保存到 '+fh.name);
+  }catch(e){ alert('保存失败: '+e.message); }
+}
+function fallbackSave(){
+  const blob = new Blob([JSON.stringify(cleanCard(card), null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = suggestName(); a.href = url; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  dirty = false; updateTitle();
+  toast('已下载（浏览器不支持直接写文件夹）');
+}
+function suggestName(){
+  const slug = (card && card.text ? card.text : 'card').slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
+  return 'engcard_'+slug+'_'+(card?card.id:'new')+'.json';
+}
+
+function confirmDiscard(){
+  if(dirty && card) return confirm('当前卡片有未保存的更改,继续会丢弃。确定？');
+  return true;
+}
+
+// ==================================================
+//  CARD EDITOR (create / edit current card)
+// ==================================================
+function editCurrentCard(){
+  if(!card){ toast('先新建或打开一张卡片'); return; }
+  document.getElementById('editCardId').value = card.id;
+  document.getElementById('cardModalTitle').textContent = '编辑卡片';
+  document.getElementById('fText').value = card.text||'';
+  document.getElementById('fNote').value = card.note||'';
+  _dlgRows = card.dialogs ? card.dialogs.map(d=>({type:d.type||'',text:d.text||''})) : [];
+  renderDlgEditRows();
+  document.getElementById('cardModal').classList.add('open');
+  setTimeout(()=>document.getElementById('fText').focus(), 60);
+}
+function closeCardModal(){ document.getElementById('cardModal').classList.remove('open'); }
+function dlgAddRow(type,text){ _dlgRows.push({type:type||'A',text:text||''}); renderDlgEditRows(); }
+function dlgDelRow(i){ _dlgRows.splice(i,1); renderDlgEditRows(); }
+function renderDlgEditRows(){
+  const box = document.getElementById('dlgEditRows');
+  const empty = document.getElementById('dlgEditEmpty');
+  if(!_dlgRows.length){ box.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  box.innerHTML = _dlgRows.map((d,i)=>(
+    '<div class="dlgEditRow">'
+    +'<input type="text" maxlength="12" placeholder="标签" value="'+esc(d.type)+'" oninput="_dlgRows['+i+'].type=this.value">'
+    +'<textarea rows="2" placeholder="对话内容..." oninput="_dlgRows['+i+'].text=this.value">'+esc(d.text)+'</textarea>'
+    +'<button class="btn" style="font-size:11px;padding:1px 5px;color:#c0392b;" onclick="dlgDelRow('+i+')">✕</button>'
+    +'</div>'
+  )).join('');
+}
+function saveCard(){
+  const text = document.getElementById('fText').value.trim();
+  if(!text){ toast('正文不能为空'); return; }
+  const note = document.getElementById('fNote').value.trim();
+  const dialogs = _dlgRows.map(d=>({type:(d.type||'').trim()||'A', text:(d.text||'').trim()})).filter(d=>d.text);
+  const editId = document.getElementById('editCardId').value;
+  const editing = editId && card && String(card.id)===String(editId);
+  if(editing){
+    if(card.text!==text) card._masks = [];   // old mask offsets no longer match
+    card.text=text; card.note=note; card.dialogs=dialogs; card.editedAt=new Date().toISOString();
+  }else{
+    card = normalizeCard({id:newId(), text, note, dialogs, highlights:[], answers:[], createdAt:new Date().toISOString()});
+    fileHandle = null;   // a brand new card needs its own file on first save
+    openName = '';
+  }
+  markDirty();
+  closeCardModal();
+  curIdxReset();
+  renderAll();
+  toast(editing ? '已保存修改' : '新建成功,记得「保存」到文件夹');
+}
+
+// ==================================================
+//  RENDER (single card, both tabs)
+// ==================================================
+function curIdxReset(){ /* selection offsets are stale after a card swap */ selS=selE=0; }
+
+function renderAll(){
+  updateFileUI();
+  renderMemory();
+  renderConversation();
+  updateTitle();
+}
+function updateFileUI(){
+  const has = !!card;
+  document.getElementById('editBtn').disabled = !has;
+  document.getElementById('saveBtn').disabled = !has;
+  document.getElementById('saveAsBtn').disabled = !has;
+}
+
+function renderMemory(){
+  const has = !!card;
+  document.getElementById('noCard1').style.display = has?'none':'block';
+  document.getElementById('cardArea').style.display = has?'block':'none';
+  const na = document.getElementById('noteArea');
+  if(has && card.note && card.note.trim()){ na.textContent = '📝 '+card.note; na.style.display='block'; }
+  else na.style.display='none';
+  document.getElementById('sMask1').textContent = '遮蔽: '+(has?(card._masks||[]).length:0);
+  renderPlain();
+  clearCapture(1);
+}
 
 function renderPlain(){
-  const c = curCard1();
-  if(!c){ document.getElementById('cardArea').innerHTML = ''; return; }
-  const text = c.text, masks = c._masks||[];
-  if(!masks.length){ document.getElementById('cardArea').innerHTML = esc(text).replace(/\n/g,'<br>'); return; }
+  const ca = document.getElementById('cardArea');
+  if(!card){ ca.innerHTML=''; return; }
+  const text = card.text, masks = card._masks||[];
+  if(!masks.length){ ca.innerHTML = esc(text).replace(/\n/g,'<br>'); return; }
   const evs = [];
   masks.forEach((m,i)=>{ evs.push({p:m.start,t:'o',i},{p:m.end,t:'c',i}); });
   evs.sort((a,b)=>a.p-b.p||(a.t==='c'?-1:1));
@@ -417,122 +547,28 @@ function renderPlain(){
     if(ev.t==='o'){ inM=true; mi=ev.i; } else { inM=false; mi=-1; }
   }
   if(pos<text.length) html += esc(text.slice(pos)).replace(/\n/g,'<br>');
-  document.getElementById('cardArea').innerHTML = html;
+  ca.innerHTML = html;
 }
-
-function wordsMatch(a,b){
-  if(a===b) return true;
-  if(a.length>=4 && b.length>=4 && (a.includes(b)||b.includes(a))) return true;
-  const la=a.length, lb=b.length;
-  if(Math.abs(la-lb)>2 || Math.min(la,lb)<4) return false;
-  const prev=new Uint8Array(lb+1);
-  const curr=new Uint8Array(lb+1);
-  for(let j=0;j<=lb;j++) prev[j]=j;
-  for(let i=1;i<=la;i++){
-    curr[0]=i;
-    for(let j=1;j<=lb;j++){
-      curr[j] = a[i-1]===b[j-1] ? prev[j-1] : 1+Math.min(prev[j-1],prev[j],curr[j-1]);
-    }
-    prev.set(curr);
-  }
-  return prev[lb]<=2;
-}
-
-function scoreAndRender(transcript){
-  const c = curCard1(); if(!c) return;
-  const spokenWords = transcript.toLowerCase().replace(/[^a-z'\s]/g,' ').split(/\s+/).filter(w=>w.length>0);
-  const text = c.text;
-  const refTokens = [];
-  const re = /[a-zA-Z']+/g;
-  let m;
-  while((m=re.exec(text))!==null){
-    refTokens.push({norm:m[0].toLowerCase(), start:m.index, end:m.index+m[0].length});
-  }
-  document.getElementById('transcript').textContent = transcript + '\n\n[识别到 '+spokenWords.length+' 词 / 原文 '+refTokens.length+' 词]';
-  const R=refTokens.length, S=spokenWords.length;
-  const dp = Array.from({length:R+1},()=>new Uint16Array(S+1));
-  for(let i=1;i<=R;i++){
-    for(let j=1;j<=S;j++){
-      if(wordsMatch(refTokens[i-1].norm, spokenWords[j-1])) dp[i][j]=dp[i-1][j-1]+1;
-      else dp[i][j]=Math.max(dp[i-1][j],dp[i][j-1]);
-    }
-  }
-  const matched = new Uint8Array(R);
-  let i=R, j=S;
-  while(i>0 && j>0){
-    if(wordsMatch(refTokens[i-1].norm, spokenWords[j-1])){ matched[i-1]=1; i--; j--; }
-    else if(dp[i-1][j]>=dp[i][j-1]) i--;
-    else j--;
-  }
-  const matchedCount = matched.reduce((a,b)=>a+b,0);
-  const total = R||1;
-  const pct = Math.round(matchedCount/total*100);
-  const color = pct>=80?'#006600':pct>=50?'#884400':'#cc0000';
-  document.getElementById('covFill').style.width = pct+'%';
-  document.getElementById('covFill').style.background = color;
-  document.getElementById('covPct').textContent = pct+'%';
-  document.getElementById('covPct').style.color = color;
-  const grade = pct>=90?'A':pct>=75?'B':pct>=60?'C':'D';
-  const gc = {A:'#006600',B:'#3a7a00',C:'#884400',D:'#cc0000'}[grade];
-  document.getElementById('gradeBox').textContent = grade;
-  document.getElementById('gradeBox').style.color = gc;
-  drillN++;
-  document.getElementById('sDrill').textContent = '次数: '+drillN;
-  const prev = c._bestScore;
-  if(prev==null || pct>prev){
-    c._bestScore = pct;
-    document.getElementById('sBest').textContent = '最高: '+pct+'%';
-    document.getElementById('histSpan').textContent = prev!=null ? '🌟 新高！' : '';
-  } else {
-    document.getElementById('histSpan').textContent = pct>=75 ? '💪' : '加油！';
-  }
-  renderCardList1();
-  const charResult = {};
-  refTokens.forEach((tok,idx)=>{
-    const cls = matched[idx] ? 'said' : 'missed';
-    for(let p=tok.start;p<tok.end;p++) charResult[p]=cls;
-  });
-  let html='', pos=0;
-  while(pos<text.length){
-    const ch = text[pos];
-    if(ch==='\n'){ html+='<br>'; pos++; continue; }
-    if(ch===' '){ html+=' '; pos++; continue; }
-    let end=pos;
-    while(end<text.length && text[end]!==' ' && text[end]!=='\n') end++;
-    const token = text.slice(pos,end);
-    let cls=null;
-    for(let p=pos;p<end && !cls;p++) cls = charResult[p]||null;
-    html += cls ? '<span class="w '+cls+'">'+esc(token)+'</span>' : esc(token);
-    pos = end;
-  }
-  document.getElementById('cardArea').innerHTML = html;
-  document.getElementById('legendRow').style.display='flex';
-}
-
-function resetView(){ renderPlain(); document.getElementById('legendRow').style.display='none'; }
-
 function clickMk(i){
-  const c = curCard1(); if(!c) return;
+  if(!card) return;
   const el = document.getElementById('cardArea').querySelector('[data-mi="'+i+'"]');
   if(!el) return;
-  const chunk = c.text.slice(c._masks[i].start, c._masks[i].end);
+  const chunk = card.text.slice(card._masks[i].start, card._masks[i].end);
   if(el.classList.contains('vis')){ el.className='mk'; el.innerHTML = chunk.replace(/\S/g,'█'); }
   else { el.className='mk vis'; el.textContent = chunk; }
 }
-
 function onSel(){
-  const c = curCard1(); if(!c) return;
+  if(!card) return;
   setTimeout(()=>{
     const sel = window.getSelection();
-    if(!sel || sel.rangeCount===0 || sel.isCollapsed){ hidePop(); setMBtn(false); return; }
+    if(!sel || sel.rangeCount===0 || sel.isCollapsed){ hidePop(); return; }
     const range = sel.getRangeAt(0);
     const ca = document.getElementById('cardArea');
-    if(!ca.contains(range.commonAncestorContainer)){ hidePop(); setMBtn(false); return; }
+    if(!ca.contains(range.commonAncestorContainer)){ hidePop(); return; }
     const pre = document.createRange();
     pre.setStart(ca,0); pre.setEnd(range.startContainer, range.startOffset);
     selS = pre.toString().length; selE = selS + range.toString().length;
-    if(selE<=selS){ hidePop(); setMBtn(false); return; }
-    setMBtn(true);
+    if(selE<=selS){ hidePop(); return; }
     const r = range.getBoundingClientRect();
     const pop = document.getElementById('pop');
     pop.style.display='flex';
@@ -540,280 +576,462 @@ function onSel(){
     pop.style.top = (r.bottom+scrollY+4)+'px';
   },10);
 }
-function setMBtn(on){ document.getElementById('maskBtn').disabled=!on; document.getElementById('umBtn').disabled=!on; }
 function hidePop(){ document.getElementById('pop').style.display='none'; }
 function applyMask(){
-  const c = curCard1(); if(!c || selE<=selS) return;
-  if(!c._masks) c._masks=[];
-  const ex = c._masks.find(m=>m.start<=selS && m.end>=selE);
-  if(ex) c._masks = c._masks.filter(m=>m!==ex);
-  else { c._masks = c._masks.filter(m=>m.end<=selS||m.start>=selE); c._masks.push({start:selS,end:selE}); }
-  hidePop(); setMBtn(false); renderPlain();
-  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
-  renderCardList1();
+  if(!card || selE<=selS) return;
+  if(!card._masks) card._masks=[];
+  const ex = card._masks.find(m=>m.start<=selS && m.end>=selE);
+  if(ex) card._masks = card._masks.filter(m=>m!==ex);
+  else { card._masks = card._masks.filter(m=>m.end<=selS||m.start>=selE); card._masks.push({start:selS,end:selE}); }
+  hidePop(); renderPlain();
+  document.getElementById('sMask1').textContent = '遮蔽: '+card._masks.length;
 }
 function clearMask(){
-  const c = curCard1(); if(!c) return;
-  c._masks = (c._masks||[]).filter(m=>!(m.start<selE && m.end>selS));
-  hidePop(); setMBtn(false); renderPlain();
-  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
-  renderCardList1();
+  if(!card) return;
+  card._masks = (card._masks||[]).filter(m=>!(m.start<selE && m.end>selS));
+  hidePop(); renderPlain();
+  document.getElementById('sMask1').textContent = '遮蔽: '+card._masks.length;
 }
 function maskAll(){
-  const c = curCard1(); if(!c) return;
+  if(!card){ toast('先新建或打开一张卡片'); return; }
   const masks = [];
   const re = /[a-zA-Z0-9'\u00C0-\u024F]+/g;
   let m;
-  while((m=re.exec(c.text))!==null){ masks.push({start:m.index, end:m.index+m[0].length}); }
-  c._masks = masks;
+  while((m=re.exec(card.text))!==null){ masks.push({start:m.index, end:m.index+m[0].length}); }
+  card._masks = masks;
   renderPlain();
-  document.getElementById('sMask').textContent = '遮蔽: '+c._masks.length;
-  renderCardList1();
+  document.getElementById('sMask1').textContent = '遮蔽: '+card._masks.length;
+}
+function clearAllMasks(){
+  if(!card) return;
+  card._masks = [];
+  renderPlain();
+  document.getElementById('sMask1').textContent = '遮蔽: 0';
 }
 document.addEventListener('click', e=>{
   const pop = document.getElementById('pop'), ca = document.getElementById('cardArea');
-  if(pop.style.display==='flex' && !pop.contains(e.target) && !ca.contains(e.target)) hidePop();
+  if(pop.style.display==='flex' && !pop.contains(e.target) && (!ca||!ca.contains(e.target))) hidePop();
 });
 
+// ==================================================
+//  SHARED CAPTURE ENGINE
+//  Web Speech API  -> transcript (the words)
+//  Web Audio (RMS) -> own voice-activity timeline for
+//                     precise pause / timing detection.
+//  Text analysis   -> adjacent repeats + possible fillers.
+//  No scoring. Output is a clean record to paste into Claude.
+// ==================================================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const VAD = { hangoverMs:150, minPauseMs:300, bigPauseMs:1000 };
+const FILLERS = ['um','uh','uhh','umm','er','erm','hmm','mmm','ah','eh'];
+const SOFT_FILLERS = ['like','you know','i mean','sort of','kind of','basically','actually'];
 
-function toggleRec(){ if(isRec) stopRec(); else startRec(); }
-function startRec(){
-  if(!SR){ alert('请使用 Chrome 或 Edge 浏览器'); return; }
-  if(isRec || !curCard1()) return;
-  isRec=true; fullTranscript='';
-  document.getElementById('transcript').textContent='';
-  document.getElementById('transcript').classList.add('listening');
-  document.getElementById('recBtn').classList.add('on');
-  document.getElementById('recBtn').innerHTML='⏹';
-  document.getElementById('transLabel').textContent='录音中...';
-  document.getElementById('recStatus').textContent='●';
-  buildAndStart();
+let capSession = null;
+let _sensFrac = {1:0.12, 2:0.12};   // how far above the noise floor counts as speech
+function setSens(tab, val){ _sensFrac[tab] = Math.max(0.03, Math.min(0.4, val/100)); }
+
+function getEls(tab){
+  return {
+    recBtn: document.getElementById('recBtn'+tab),
+    label: document.getElementById('recLabel'+tab),
+    dot: document.getElementById('recDot'+tab),
+    meter: document.getElementById('meter'+tab),
+    transBox: document.getElementById('transBox'+tab),
+    capPanel: document.getElementById('capPanel'+tab),
+    capAnno: document.getElementById('capAnno'+tab),
+    capStats: document.getElementById('capStats'+tab),
+    state: document.getElementById('sState'+tab)
+  };
 }
-function buildAndStart(){
-  if(!isRec) return;
-  recog = new SR();
-  recog.lang='en-GB'; recog.continuous=true; recog.interimResults=true;
-  recog.onresult = e => {
+
+function toggleRec(tab){
+  if(capSession){ if(capSession.tab===tab) stopRec(); return; }
+  startRec(tab);
+}
+function startRec(tab){
+  if(!SR){ alert('请使用 Chrome 或 Edge 浏览器'); return; }
+  if(!card){ toast('先新建或打开一张卡片'); return; }
+  if(capSession) return;
+  const els = getEls(tab);
+  capSession = {
+    tab, active:true, sr:null,
+    full:'', finalChunks:[],
+    startT: performance.now(), firstSpeechT:null,
+    audioCtx:null, analyser:null, stream:null, buf:null, raf:0, vadFailed:false,
+    vadState:'sil', segStartT:0, belowSince:0,
+    speakingMs:0, pauses:[], silenceStartT:0, lastSpeechEndT:0,
+    noiseFloor:0.003, peak:0.012   // adaptive energy envelope, seeded then self-tuned
+  };
+  els.transBox.textContent='';
+  els.transBox.classList.add('listening');
+  els.capPanel.style.display='none';
+  els.recBtn.classList.add('on');
+  els.recBtn.innerHTML='⏹';
+  els.label.textContent='录音中...';
+  els.dot.textContent='●';
+  els.state.textContent='录音中';
+  startVAD(tab);
+  buildSR(tab);
+}
+function buildSR(tab){
+  const s = capSession; if(!s || !s.active) return;
+  const sr = new SR();
+  sr.lang='en-GB'; sr.continuous=true; sr.interimResults=true;
+  sr.onresult = e => {
     let interim='';
     for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal) fullTranscript += e.results[i][0].transcript + ' ';
-      else interim += e.results[i][0].transcript;
+      if(e.results[i].isFinal){
+        const txt = e.results[i][0].transcript;
+        s.full += txt + ' ';
+        s.finalChunks.push({t: performance.now()-s.startT, text: txt.trim()});
+      } else interim += e.results[i][0].transcript;
     }
-    const box = document.getElementById('transcript');
-    box.textContent = fullTranscript + (interim?'['+interim+']':'');
+    const box = getEls(tab).transBox;
+    box.textContent = s.full + (interim? ('['+interim+']') : '');
     box.scrollTop = box.scrollHeight;
   };
-  recog.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('SR error:', e.error); };
-  recog.onend = () => { if(isRec) buildAndStart(); };
-  recog.start();
+  sr.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('SR error:', e.error); };
+  sr.onend = () => { if(s.active) buildSR(tab); };
+  s.sr = sr;
+  try{ sr.start(); }catch(e){ /* restart loop recovers from a stale start */ }
+}
+function startVAD(tab){
+  const s = capSession;
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}).then(stream=>{
+    if(!s.active){ stream.getTracks().forEach(t=>t.stop()); return; }
+    s.stream = stream;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    s.audioCtx = new Ctx();
+    // an AudioContext created inside an async callback can start suspended,
+    // which makes the analyser read all zeros (no speech ever detected). Resume it.
+    try{ s.audioCtx.resume(); }catch(e){}
+    const src = s.audioCtx.createMediaStreamSource(stream);
+    s.analyser = s.audioCtx.createAnalyser();
+    s.analyser.fftSize = 1024;
+    s.buf = new Float32Array(s.analyser.fftSize);
+    src.connect(s.analyser);
+    s.silenceStartT = performance.now();
+    loopVAD(tab);
+  }).catch(err=>{ console.warn('VAD unavailable:', err); s.vadFailed = true; });
+}
+function loopVAD(tab){
+  const s = capSession; if(!s || !s.active || !s.analyser) return;
+  s.analyser.getFloatTimeDomainData(s.buf);
+  let sum=0; for(let i=0;i<s.buf.length;i++){ const v=s.buf[i]; sum+=v*v; }
+  const rms = Math.sqrt(sum/s.buf.length);
+  const now = performance.now();
+
+  // adaptive envelope: peak decays slowly, noise floor rises slowly toward the quiet level.
+  // threshold sits a fraction of the way up from the floor toward the peak, so it tracks
+  // this mic and room automatically instead of relying on one fixed number.
+  s.peak = Math.max(rms, s.peak * 0.9995);
+  s.noiseFloor = Math.min(Math.max(rms, 1e-5), s.noiseFloor * 1.0006 + 1e-6);
+  const range = s.peak - s.noiseFloor;
+  const frac = _sensFrac[tab];
+  let thr;
+  if(range < 0.004) thr = s.peak + 0.003;                 // no real speech energy yet -> stay above
+  else thr = s.noiseFloor + frac * range;
+
+  // meter shows level relative to recent peak so it is actually visible while speaking
+  getEls(tab).meter.style.width = Math.min(100, Math.round(rms / Math.max(s.peak, 0.012) * 100))+'%';
+
+  const speaking = rms > thr;
+  if(s.vadState==='sil'){
+    if(speaking){
+      const silDur = now - s.silenceStartT;
+      if(s.firstSpeechT===null){ s.firstSpeechT = now; }
+      else if(silDur >= VAD.minPauseMs){ s.pauses.push({atMs: s.silenceStartT - s.startT, durMs: silDur}); }
+      s.vadState='spk'; s.segStartT=now; s.belowSince=0;
+    }
+  } else {
+    if(speaking){ s.belowSince=0; }
+    else{
+      if(!s.belowSince) s.belowSince=now;
+      if(now - s.belowSince >= VAD.hangoverMs){
+        s.speakingMs += (s.belowSince - s.segStartT);
+        s.lastSpeechEndT = s.belowSince;
+        s.vadState='sil'; s.silenceStartT=s.belowSince; s.belowSince=0;
+      }
+    }
+  }
+  s.raf = requestAnimationFrame(()=>loopVAD(tab));
 }
 function stopRec(){
-  if(!isRec) return;
-  isRec=false;
-  if(recog){ try{ recog.abort(); }catch(e){} recog=null; }
-  document.getElementById('recBtn').classList.remove('on');
-  document.getElementById('recBtn').innerHTML='🎙';
-  document.getElementById('transLabel').textContent='点击麦克风开始';
-  document.getElementById('recStatus').textContent='';
-  document.getElementById('transcript').classList.remove('listening');
-  const t = fullTranscript.trim();
-  if(t) scoreAndRender(t);
+  const s = capSession; if(!s) return;
+  s.active = false;
+  const tab = s.tab;
+  const els = getEls(tab);
+  if(s.sr){ try{ s.sr.abort(); }catch(e){} s.sr=null; }
+  if(s.raf) cancelAnimationFrame(s.raf);
+  const endT = performance.now();
+  if(s.vadState==='spk'){ s.speakingMs += (endT - s.segStartT); s.lastSpeechEndT = endT; }
+  if(s.stream){ s.stream.getTracks().forEach(t=>t.stop()); }
+  if(s.audioCtx){ try{ s.audioCtx.close(); }catch(e){} }
+  els.recBtn.classList.remove('on');
+  els.recBtn.innerHTML='🎙';
+  els.label.textContent='点击麦克风开始';
+  els.dot.textContent='';
+  els.transBox.classList.remove('listening');
+  els.meter.style.width='0%';
+  els.state.textContent='就绪';
+  const transcript = s.full.trim();
+  capSession = null;
+  if(!transcript){ toast('没有识别到内容'); return; }
+  const result = analyzeCapture(s, transcript);
+  renderCapture(tab, result);
 }
-function resetScore(){
-  document.getElementById('covFill').style.width='0%';
-  document.getElementById('covPct').textContent='--';
-  document.getElementById('covPct').style.color='var(--mid)';
-  document.getElementById('gradeBox').textContent='--';
-  document.getElementById('gradeBox').style.color='var(--mid)';
-  document.getElementById('histSpan').textContent='';
-}
+function analyzeCapture(s, transcript){
+  const totalMs = performance.now() - s.startT;
+  let timeToFirstMs = s.firstSpeechT!==null ? (s.firstSpeechT - s.startT) : totalMs;
+  const speakingMs = Math.max(0, Math.round(s.speakingMs));
+  const interiorPauses = s.pauses.slice();
+  const longestPauseMs = interiorPauses.reduce((mx,p)=>Math.max(mx,p.durMs),0);
+  const bigPauses = interiorPauses.filter(p=>p.durMs>=VAD.bigPauseMs).length;
+  const words = transcript.split(/\s+/).filter(Boolean);
+  const low = words.map(w=>w.toLowerCase().replace(/[^a-z']/g,''));
 
-// ════════════════════════════════
-//  TAB 2 — CONVERSATION MODE
-// ════════════════════════════════
-let isRec2=false, recog2=null, fullTranscript2='';
-let pendingAnswer='';
+  // there are words but the audio analysis saw almost no speech -> timeline is unreliable
+  // (suspended audio, blocked mic, etc). Do not show a bogus "thought for the whole time".
+  const timingBad = words.length>0 && speakingMs<300 && !s.vadFailed;
 
-function selectCard2(i){
-  stopRec2();
-  curIdx2 = i;
-  renderCardList2();
-  const c = cards[i];
-  if(!c) return;
-  document.getElementById('noCard2').style.display='none';
-  document.getElementById('convCardDetail').style.display='block';
-  document.getElementById('convText').textContent = c.text || '';
-  const note = c.note && c.note.trim();
-  if(note){
-    document.getElementById('convNoteLabel').style.display='block';
-    document.getElementById('convNoteText').style.display='block';
-    document.getElementById('convNoteText').textContent = note;
-  } else {
-    document.getElementById('convNoteLabel').style.display='none';
-    document.getElementById('convNoteText').style.display='none';
+  // consecutive repeated phrases (length 1..5): catches "the the", "I want I want",
+  // and "thank you for your thank you for your".
+  let repeatPairs = 0; const repeatExamples = [];
+  let i = 0;
+  while(i < low.length){
+    let matched = false;
+    const maxN = Math.min(5, Math.floor((low.length - i)/2));
+    for(let n = maxN; n >= 1; n--){
+      let same = true;
+      for(let k=0;k<n;k++){ if(!low[i+k] || low[i+k] !== low[i+n+k]){ same=false; break; } }
+      if(same){
+        repeatPairs++;
+        if(repeatExamples.length<4) repeatExamples.push(words.slice(i, i+n).join(' '));
+        i += n;   // skip the first copy; the repeated copy is re-checked next (catches triples)
+        matched = true; break;
+      }
+    }
+    if(!matched) i++;
   }
-  if(c.dialogs && c.dialogs.length){
-    document.getElementById('dlgToggleRow').style.display='flex';
-    renderDlgRows(c.dialogs);
-  } else {
-    document.getElementById('dlgToggleRow').style.display='none';
+
+  const text = ' '+transcript.toLowerCase()+' ';
+  let fillerCount=0; const fillerHits=[];
+  FILLERS.forEach(f=>{ const re=new RegExp('\\b'+f+'\\b','g'); const m=text.match(re); if(m){ fillerCount+=m.length; fillerHits.push(f+'×'+m.length); } });
+  let softCount=0; const softHits=[];
+  SOFT_FILLERS.forEach(f=>{ const re=new RegExp('(^|\\s)'+f.replace(/ /g,'\\s')+'(\\s|$)','g'); const m=text.match(re); if(m){ softCount+=m.length; softHits.push(f+'×'+m.length); } });
+
+  const annotated = buildAnnotated(s, transcript, timingBad ? 0 : timeToFirstMs);
+  return {
+    transcript, annotated, timingBad,
+    totalMs, timeToFirstMs, speakingMs, silenceMs: Math.max(0, Math.round(totalMs - speakingMs)),
+    pauses: interiorPauses, pauseCount: interiorPauses.length, longestPauseMs, bigPauses,
+    wordCount: words.length,
+    repeatPairs, repeatExamples,
+    fillerCount, fillerHits, softCount, softHits,
+    vadFailed: !!s.vadFailed
+  };
+}
+function buildAnnotated(s, transcript, timeToFirstMs){
+  const sec = ms => (ms/1000).toFixed(1);
+  let out = '';
+  if(timeToFirstMs >= VAD.minPauseMs && !s.vadFailed){
+    out += '<span class="pauseMk">开口前停顿 '+sec(timeToFirstMs)+'s</span> ';
   }
-  dlgOpen = false;
-  document.getElementById('dlgBlock').style.display='none';
-  document.getElementById('dlgToggleBtn').textContent = '▸ 查看对话参考';
-  renderAnswerHist(c);
-  pendingAnswer='';
-  document.getElementById('recTranscript').textContent='';
-  document.getElementById('recTranscript').classList.remove('listening');
-  document.getElementById('saveBtn2').disabled=true;
-  document.getElementById('discardBtn2').disabled=true;
-  document.getElementById('ansLen2').textContent='';
-  document.getElementById('clearAnsBtn').disabled = !(c.answers && c.answers.length);
-  document.getElementById('exportBtn').disabled = false;
-  updateConvStats();
+  if(s.vadFailed || !s.finalChunks.length){ out += esc(transcript); return out; }
+  const chunks = s.finalChunks;
+  const pauses = s.pauses.slice().sort((a,b)=>a.atMs-b.atMs);
+  let pi = 0;
+  for(let ci=0; ci<chunks.length; ci++){
+    out += esc(chunks[ci].text) + ' ';
+    const nextT = ci+1<chunks.length ? chunks[ci+1].t : Infinity;
+    while(pi<pauses.length && pauses[pi].atMs <= nextT){
+      if(pauses[pi].durMs >= VAD.minPauseMs){ out += '<span class="pauseMk">停顿 '+sec(pauses[pi].durMs)+'s</span> '; }
+      pi++;
+    }
+  }
+  return out.trim();
+}
+function fmtSec(ms){ return (ms/1000).toFixed(1)+'s'; }
+
+function renderCapture(tab, r){
+  const els = getEls(tab);
+  els.capAnno.innerHTML = r.annotated || esc(r.transcript);
+  const noTiming = r.vadFailed || r.timingBad;
+  const chips = [];
+  chips.push('<span class="statChip">词数 <b>'+r.wordCount+'</b></span>');
+  chips.push('<span class="statChip">总时长 <b>'+fmtSec(r.totalMs)+'</b></span>');
+  if(!noTiming){
+    chips.push('<span class="statChip">开口前 <b>'+fmtSec(r.timeToFirstMs)+'</b></span>');
+    chips.push('<span class="statChip">说话 <b>'+fmtSec(r.speakingMs)+'</b> / 静音 <b>'+fmtSec(r.silenceMs)+'</b></span>');
+    chips.push('<span class="statChip">停顿 <b>'+r.pauseCount+'</b> 次'+(r.pauseCount?(' (最长 '+fmtSec(r.longestPauseMs)+')'):'')+'</span>');
+    if(r.bigPauses) chips.push('<span class="statChip">长停顿(&ge;1s) <b>'+r.bigPauses+'</b></span>');
+  }
+  chips.push('<span class="statChip">重复 <b>'+r.repeatPairs+'</b> 处</span>');
+  if(r.fillerCount) chips.push('<span class="statChip">填充词 <b>'+r.fillerCount+'</b></span>');
+  if(r.softCount) chips.push('<span class="statChip">口头语 <b>'+r.softCount+'</b></span>');
+  if(r.vadFailed) chips.push('<span class="statChip" style="color:#c0392b;">麦克风时间线不可用</span>');
+  else if(r.timingBad) chips.push('<span class="statChip" style="color:#c0392b;">停顿时间线异常,这次未采到(可调高灵敏或检查麦克风权限)</span>');
+  els.capStats.innerHTML = chips.join('');
+  els.capPanel.style.display='flex';
+  els.capPanel._result = r;
+  els.capPanel.scrollIntoView({block:'nearest'});
+}
+function clearCapture(tab){
+  const els = getEls(tab);
+  els.capPanel.style.display='none';
+  els.capPanel._result = null;
+  els.transBox.textContent='';
+}
+function buildClaudeText(tab){
+  const els = getEls(tab);
+  const r = els.capPanel._result; if(!r || !card) return '';
+  const plainAnno = (r.annotated||esc(r.transcript))
+    .replace(/<span class="pauseMk">/g,'《').replace(/<\/span>/g,'》')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const L = [];
+  L.push('请帮我分析这次英语口语表达,目标是更自然、流利的主动表达(不是背诵)。请逐次给出: 1) 停顿和重复反映出哪些组织语言的困难; 2) 用词与语法可以怎么改; 3) 给 2-3 个更地道的说法; 4) 一句话总评 + 下次的一个小目标。');
+  L.push('');
+  L.push('【模式】'+(tab===1?'记忆(复述/重建原文)':'对话(自由回应情境)'));
+  L.push('【'+(tab===1?'原文':'情境')+'】');
+  L.push(card.text||'');
+  if(card.note && card.note.trim()){ L.push('【背景笔记】'); L.push(card.note.trim()); }
+  if(card.dialogs && card.dialogs.length){
+    L.push('【对话参考】');
+    card.dialogs.forEach(d=>L.push((d.type?('['+d.type+'] '):'')+(d.text||'')));
+  }
+  L.push('【我的口述(《》内为程序检测到的停顿)】');
+  L.push(plainAnno);
+  L.push('【客观统计】');
+  const parts = [];
+  parts.push('词数 '+r.wordCount);
+  parts.push('总时长 '+fmtSec(r.totalMs));
+  if(!r.vadFailed && !r.timingBad){
+    parts.push('开口前停顿 '+fmtSec(r.timeToFirstMs));
+    parts.push('说话 '+fmtSec(r.speakingMs)+' / 静音 '+fmtSec(r.silenceMs));
+    parts.push('停顿 '+r.pauseCount+' 次'+(r.pauseCount?(' (最长 '+fmtSec(r.longestPauseMs)+')'):''));
+    if(r.bigPauses) parts.push('长停顿 '+r.bigPauses+' 次');
+  }
+  parts.push('重复 '+r.repeatPairs+' 处'+(r.repeatExamples.length?(' ('+r.repeatExamples.join(', ')+')'):''));
+  if(r.fillerCount) parts.push('填充词 '+r.fillerCount+' ('+r.fillerHits.join(', ')+')');
+  if(r.softCount) parts.push('口头语 '+r.softCount+' ('+r.softHits.join(', ')+')');
+  L.push(parts.join('; ')+'。');
+  if(r.timingBad) L.push('(本次停顿时间线采集异常,未计入。)');
+  L.push('(说明: 停顿与重复由程序粗略检测,语音识别可能已清理部分重复与填充词,仅供参考。)');
+  return L.join('\n');
+}
+function copyForClaude(tab){
+  const text = buildClaudeText(tab);
+  if(!text){ toast('没有可复制的内容'); return; }
+  const done = ()=>toast('已复制,去 Claude 粘贴即可');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败,请手动选择'); }
+  document.body.removeChild(ta);
 }
 
-function curCard2(){ return curIdx2>=0 ? cards[curIdx2] : null; }
-
+// ==================================================
+//  TAB 2 - CONVERSATION MODE (free expression)
+// ==================================================
+function renderConversation(){
+  const has = !!card;
+  document.getElementById('noCard2').style.display = has?'none':'block';
+  document.getElementById('convCardDetail').style.display = has?'block':'none';
+  if(has){
+    document.getElementById('convText').textContent = card.text||'';
+    const note = card.note && card.note.trim();
+    document.getElementById('convNoteLabel').style.display = note?'block':'none';
+    document.getElementById('convNoteText').style.display = note?'block':'none';
+    if(note) document.getElementById('convNoteText').textContent = note;
+    if(card.dialogs && card.dialogs.length){
+      document.getElementById('dlgToggleRow').style.display='flex';
+      renderDlgRows(card.dialogs);
+    } else {
+      document.getElementById('dlgToggleRow').style.display='none';
+    }
+    dlgOpen = false;
+    document.getElementById('dlgBlock').style.display='none';
+    document.getElementById('dlgToggleBtn').textContent='▸ 查看对话参考';
+    renderAnswerHist();
+  }
+  document.getElementById('statAnswered2').textContent = '回答: '+(has?(card.answers||[]).length:0);
+  clearCapture(2);
+}
 function renderDlgRows(dialogs){
-  document.getElementById('dlgRows').innerHTML = dialogs.map(d=>{
-    return '<div class="dlg-row"><span class="dlg-tag">'+esc(d.type||'')+'</span><span class="dlg-text">'+esc(d.text||'')+'</span></div>';
-  }).join('');
+  document.getElementById('dlgRows').innerHTML = dialogs.map(d=>(
+    '<div class="dlg-row"><span class="dlg-tag">'+esc(d.type||'')+'</span><span class="dlg-text">'+esc(d.text||'')+'</span></div>'
+  )).join('');
 }
-
 function toggleDlgBlock(){
   dlgOpen = !dlgOpen;
-  document.getElementById('dlgBlock').style.display = dlgOpen ? 'block' : 'none';
-  document.getElementById('dlgToggleBtn').textContent = dlgOpen ? '▾ 隐藏对话参考' : '▸ 查看对话参考';
+  document.getElementById('dlgBlock').style.display = dlgOpen?'block':'none';
+  document.getElementById('dlgToggleBtn').textContent = dlgOpen?'▾ 隐藏对话参考':'▸ 查看对话参考';
 }
-
-function renderAnswerHist(c){
+function renderAnswerHist(){
   const list = document.getElementById('answerHistList');
-  if(!c.answers || !c.answers.length){
-    list.innerHTML = '<div style="font-size:12px;color:var(--mid);">（尚无回答）</div>';
-    return;
-  }
-  list.innerHTML = c.answers.slice().reverse().map(a=>{
+  const ans = card ? (card.answers||[]) : [];
+  if(!ans.length){ list.innerHTML = '<div style="font-size:12px;color:var(--mid);">尚无回答。开口录一条试试。</div>'; return; }
+  list.innerHTML = ans.slice().reverse().map((a)=>{
+    const realIdx = ans.indexOf(a);
     const ts = a.timestamp ? new Date(a.timestamp).toLocaleString() : '';
-    return '<div class="answer-entry"><div class="answer-entry-ts">'+esc(ts)+'</div>'+esc(a.text)+'</div>';
+    return '<div class="answer-entry"><div class="answer-entry-ts"><span>'+esc(ts)+'</span><span class="ae-del" onclick="delAnswer('+realIdx+')">删除</span></div>'+esc(a.text)+'</div>';
   }).join('');
 }
-
-function toggleRec2(){ if(isRec2) stopRec2(); else startRec2(); }
-function startRec2(){
-  if(!SR){ alert('请使用 Chrome 或 Edge 浏览器'); return; }
-  if(!curCard2()){ alert('请先选择一张卡片'); return; }
-  if(isRec2) return;
-  isRec2=true; fullTranscript2=''; pendingAnswer='';
-  document.getElementById('recTranscript').textContent='';
-  document.getElementById('recTranscript').classList.add('listening');
-  document.getElementById('recBtn2').classList.add('on');
-  document.getElementById('recBtn2').innerHTML='⏹';
-  document.getElementById('recLabel2').textContent='录音中...';
-  document.getElementById('recStatus2').textContent='●';
-  document.getElementById('saveBtn2').disabled=true;
-  document.getElementById('discardBtn2').disabled=true;
-  buildAndStart2();
-}
-function buildAndStart2(){
-  if(!isRec2) return;
-  recog2 = new SR();
-  recog2.lang='en-GB'; recog2.continuous=true; recog2.interimResults=true;
-  recog2.onresult = e => {
-    let interim='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal) fullTranscript2 += e.results[i][0].transcript + ' ';
-      else interim += e.results[i][0].transcript;
-    }
-    const box = document.getElementById('recTranscript');
-    box.textContent = fullTranscript2 + (interim?'['+interim+']':'');
-    box.scrollTop = box.scrollHeight;
-  };
-  recog2.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('Rec2 error:', e.error); };
-  recog2.onend = () => { if(isRec2) buildAndStart2(); };
-  recog2.start();
-}
-function stopRec2(){
-  if(!isRec2) return;
-  isRec2=false;
-  if(recog2){ try{ recog2.abort(); }catch(e){} recog2=null; }
-  document.getElementById('recBtn2').classList.remove('on');
-  document.getElementById('recBtn2').innerHTML='🎙';
-  document.getElementById('recLabel2').textContent='点击麦克风开始录音';
-  document.getElementById('recStatus2').textContent='';
-  document.getElementById('recTranscript').classList.remove('listening');
-  const t = fullTranscript2.trim();
-  if(t){
-    pendingAnswer = t;
-    const wc = t.split(/\s+/).filter(w=>w).length;
-    document.getElementById('ansLen2').textContent = '共 '+wc+' 词';
-    document.getElementById('saveBtn2').disabled=false;
-    document.getElementById('discardBtn2').disabled=false;
-    document.getElementById('statWords2').textContent = '本次词数: '+wc;
-  }
-}
-
 function saveAnswer(){
-  const c = curCard2(); if(!c || !pendingAnswer) return;
-  if(!c.answers) c.answers=[];
-  c.answers.push({ text: pendingAnswer, timestamp: new Date().toISOString() });
-  renderAnswerHist(c);
-  pendingAnswer='';
-  document.getElementById('recTranscript').textContent='';
-  document.getElementById('saveBtn2').disabled=true;
-  document.getElementById('discardBtn2').disabled=true;
-  document.getElementById('ansLen2').textContent='';
-  document.getElementById('clearAnsBtn').disabled=false;
-  renderCardList2();
-  updateConvStats();
+  if(!card){ return; }
+  const r = getEls(2).capPanel._result;
+  if(!r || !r.transcript){ toast('没有可保存的回答'); return; }
+  if(!card.answers) card.answers=[];
+  card.answers.push({ text: r.transcript, timestamp: new Date().toISOString() });
+  markDirty();
+  renderAnswerHist();
+  document.getElementById('statAnswered2').textContent = '回答: '+card.answers.length;
+  toast('回答已存入卡片,记得「保存」到文件夹');
 }
-
-function discardAnswer(){
-  pendingAnswer='';
-  document.getElementById('recTranscript').textContent='';
-  document.getElementById('saveBtn2').disabled=true;
-  document.getElementById('discardBtn2').disabled=true;
-  document.getElementById('ansLen2').textContent='';
+function delAnswer(idx){
+  if(!card || !card.answers) return;
+  card.answers.splice(idx,1);
+  markDirty();
+  renderAnswerHist();
+  document.getElementById('statAnswered2').textContent = '回答: '+card.answers.length;
 }
-
 function clearAnswers(){
-  const c = curCard2(); if(!c) return;
+  if(!card){ toast('还没有卡片'); return; }
+  if(!card.answers || !card.answers.length){ toast('还没有已保存的回答'); return; }
   if(!confirm('清空这张卡片的全部回答记录？')) return;
-  c.answers = [];
-  renderAnswerHist(c);
-  document.getElementById('clearAnsBtn').disabled=true;
-  renderCardList2();
-  updateConvStats();
+  card.answers = [];
+  markDirty();
+  renderAnswerHist();
+  document.getElementById('statAnswered2').textContent = '回答: 0';
 }
 
-function exportCurrentCard(){
-  const c = curCard2(); if(!c) return;
-  const data = {
-    id: c.id,
-    text: c.text,
-    note: c.note || '',
-    dialogs: c.dialogs || [],
-    highlights: c.highlights || [],
-    answers: c.answers || [],
-    createdAt: c.createdAt || new Date().toISOString()
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  const slug = (c.text||'card').slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
-  a.download = 'engcard_' + slug + '_' + c.id + '.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
+// ==================================================
+//  TABS + BOOT
+// ==================================================
+function switchTab(n){
+  if(capSession) stopRec();
+  activeTab = n;
+  document.getElementById('tab1').classList.toggle('active', n===1);
+  document.getElementById('tab2').classList.toggle('active', n===2);
+  document.getElementById('panel1').classList.toggle('active', n===1);
+  document.getElementById('panel2').classList.toggle('active', n===2);
+  document.getElementById('maskTools').style.display = n===1 ? 'flex' : 'none';
+  document.getElementById('convTools').style.display = n===2 ? 'flex' : 'none';
 }
 
-function updateConvStats(){
-  const total = cards.length;
-  const answered = cards.filter(c=>c.answers && c.answers.length>0).length;
-  document.getElementById('statCards2').textContent = '卡片: ' + total;
-  document.getElementById('statAnswered2').textContent = '已录: ' + answered;
-  document.getElementById('cardCount2').textContent = total ? (total+' 张，已录 '+answered+' 张') : '';
+window.addEventListener('beforeunload', e=>{ if(dirty && card){ e.preventDefault(); e.returnValue=''; } });
+
+function init(){
+  renderAll();
+  switchTab(1);
+  if(!SR){ document.getElementById('fileHint').textContent = '注意: 当前浏览器不支持语音识别,请用 Chrome 或 Edge。'; }
 }
+init();
 </script>
 </body>
 </html>

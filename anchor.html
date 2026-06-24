@@ -622,13 +622,13 @@ document.addEventListener('click', e=>{
 //  No scoring. Output is a clean record to paste into Claude.
 // ==================================================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const VAD = { hangoverMs:150, minPauseMs:300, bigPauseMs:1000 };
+const VAD = { hangoverMs:180, minPauseMs:300, bigPauseMs:1000, minSpeechMs:80 };
 const FILLERS = ['um','uh','uhh','umm','er','erm','hmm','mmm','ah','eh'];
 const SOFT_FILLERS = ['like','you know','i mean','sort of','kind of','basically','actually'];
 
 let capSession = null;
-let _sensFrac = {1:0.12, 2:0.12};   // how far above the noise floor counts as speech
-function setSens(tab, val){ _sensFrac[tab] = Math.max(0.03, Math.min(0.4, val/100)); }
+let _sensVal = {1:12, 2:12};   // raw slider value; higher = stricter (needs a louder voice)
+function setSens(tab, val){ _sensVal[tab] = +val; }
 
 function getEls(tab){
   return {
@@ -654,13 +654,15 @@ function startRec(tab){
   if(capSession) return;
   const els = getEls(tab);
   capSession = {
-    tab, active:true, sr:null,
-    full:'', finalChunks:[],
+    tab, active:true, sr:null, srStarting:false,
+    full:'',                 // committed final text
+    pendingInterim:'',       // latest interim not yet finalized (committed on restart/stop)
+    wordTimes:[],            // approx spoken time (ms from start) for each word position
     startT: performance.now(), firstSpeechT:null,
-    audioCtx:null, analyser:null, stream:null, buf:null, raf:0, vadFailed:false,
+    audioCtx:null, srcNode:null, procNode:null, muteNode:null, stream:null, vadFailed:false,
     vadState:'sil', segStartT:0, belowSince:0,
-    speakingMs:0, pauses:[], silenceStartT:0, lastSpeechEndT:0,
-    noiseFloor:0.003, peak:0.012   // adaptive energy envelope, seeded then self-tuned
+    speakingMs:0, pauses:[], silenceStartT:0,
+    noiseFloor:0.02          // min-follower, seeded high so it drops to the real floor fast
   };
   els.transBox.textContent='';
   els.transBox.classList.add('listening');
@@ -673,67 +675,104 @@ function startRec(tab){
   startVAD(tab);
   buildSR(tab);
 }
+// ---- Speech recognition: accumulate finals, keep interim, never drop a segment ----
+function commitInterim(s){
+  const t = (s.pendingInterim||'').trim();
+  if(t){ s.full += t + ' '; }
+  s.pendingInterim = '';
+}
+// Build an approximate per-word timeline from the growing hypothesis (finals + interim),
+// so pause markers can be placed at the gap where they actually happened. Interim updates
+// arrive near real time, which lines up with the audio timeline far better than the
+// delayed, batched arrival of final results.
+function stampWords(s, hypothesis){
+  const trimmed = hypothesis.trim();
+  const n = trimmed ? trimmed.split(/\s+/).length : 0;
+  const now = performance.now() - s.startT;
+  while(s.wordTimes.length < n){ s.wordTimes.push(now); }
+}
 function buildSR(tab){
   const s = capSession; if(!s || !s.active) return;
+  if(s.srStarting) return;          // avoid spawning overlapping recognizers
+  s.srStarting = true;
   const sr = new SR();
-  sr.lang='en-GB'; sr.continuous=true; sr.interimResults=true;
+  sr.lang='en-GB'; sr.continuous=true; sr.interimResults=true; sr.maxAlternatives=1;
+  sr.onstart = () => { s.srStarting = false; };
   sr.onresult = e => {
     let interim='';
     for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal){
-        const txt = e.results[i][0].transcript;
-        s.full += txt + ' ';
-        s.finalChunks.push({t: performance.now()-s.startT, text: txt.trim()});
-      } else interim += e.results[i][0].transcript;
+      const res = e.results[i];
+      if(res.isFinal){
+        const txt = res[0].transcript.trim();
+        if(txt){ s.full += txt + ' '; }
+      } else {
+        interim += res[0].transcript;
+      }
     }
+    s.pendingInterim = interim;     // remember the live hypothesis so a restart can keep it
+    stampWords(s, s.full + interim);
     const box = getEls(tab).transBox;
-    box.textContent = s.full + (interim? ('['+interim+']') : '');
+    box.textContent = s.full + (interim ? ('['+interim+']') : '');
     box.scrollTop = box.scrollHeight;
   };
-  sr.onerror = e => { if(e.error==='aborted'||e.error==='not-allowed') return; console.warn('SR error:', e.error); };
-  sr.onend = () => { if(s.active) buildSR(tab); };
+  sr.onerror = e => {
+    s.srStarting = false;
+    // 'no-speech' and 'aborted' are normal during long takes; onend will restart.
+    if(e.error==='not-allowed' || e.error==='service-not-allowed'){
+      console.warn('SR permission error:', e.error);
+    }
+  };
+  sr.onend = () => {
+    s.srStarting = false;
+    if(!s.active) return;
+    commitInterim(s);               // keep whatever was mid-sentence before restarting
+    buildSR(tab);                   // continuous restart so long recitations are not cut off
+  };
   s.sr = sr;
-  try{ sr.start(); }catch(e){ /* restart loop recovers from a stale start */ }
+  try{ sr.start(); }
+  catch(err){ s.srStarting = false; }   // a stale recognizer can throw; onend recovers
 }
+// ---- Voice activity timeline via ScriptProcessor (audio-thread timing, no rAF throttling) ----
 function startVAD(tab){
   const s = capSession;
-  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}).then(stream=>{
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:false}}).then(stream=>{
     if(!s.active){ stream.getTracks().forEach(t=>t.stop()); return; }
     s.stream = stream;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     s.audioCtx = new Ctx();
-    // an AudioContext created inside an async callback can start suspended,
-    // which makes the analyser read all zeros (no speech ever detected). Resume it.
+    // a context created inside an async callback can start suspended (analyser reads zeros);
+    // resume it so audio actually flows.
     try{ s.audioCtx.resume(); }catch(e){}
-    const src = s.audioCtx.createMediaStreamSource(stream);
-    s.analyser = s.audioCtx.createAnalyser();
-    s.analyser.fftSize = 1024;
-    s.buf = new Float32Array(s.analyser.fftSize);
-    src.connect(s.analyser);
+    s.srcNode  = s.audioCtx.createMediaStreamSource(stream);
+    s.procNode = s.audioCtx.createScriptProcessor(2048, 1, 1);  // ~46ms blocks, audio-thread timed
+    s.muteNode = s.audioCtx.createGain();
+    s.muteNode.gain.value = 0;   // route to destination so the processor fires, but stay silent
+    s.srcNode.connect(s.procNode);
+    s.procNode.connect(s.muteNode);
+    s.muteNode.connect(s.audioCtx.destination);
     s.silenceStartT = performance.now();
-    loopVAD(tab);
+    s.procNode.onaudioprocess = ev => processAudio(tab, ev);
   }).catch(err=>{ console.warn('VAD unavailable:', err); s.vadFailed = true; });
 }
-function loopVAD(tab){
-  const s = capSession; if(!s || !s.active || !s.analyser) return;
-  s.analyser.getFloatTimeDomainData(s.buf);
-  let sum=0; for(let i=0;i<s.buf.length;i++){ const v=s.buf[i]; sum+=v*v; }
-  const rms = Math.sqrt(sum/s.buf.length);
+function processAudio(tab, ev){
+  const s = capSession; if(!s || !s.active) return;
+  const data = ev.inputBuffer.getChannelData(0);
+  let sum=0; for(let i=0;i<data.length;i++){ const v=data[i]; sum+=v*v; }
+  const rms = Math.sqrt(sum/data.length);
   const now = performance.now();
 
-  // adaptive envelope: peak decays slowly, noise floor rises slowly toward the quiet level.
-  // threshold sits a fraction of the way up from the floor toward the peak, so it tracks
-  // this mic and room automatically instead of relying on one fixed number.
-  s.peak = Math.max(rms, s.peak * 0.9995);
-  s.noiseFloor = Math.min(Math.max(rms, 1e-5), s.noiseFloor * 1.0006 + 1e-6);
-  const range = s.peak - s.noiseFloor;
-  const frac = _sensFrac[tab];
-  let thr;
-  if(range < 0.004) thr = s.peak + 0.003;                 // no real speech energy yet -> stay above
-  else thr = s.noiseFloor + frac * range;
+  // min-follower noise floor: snaps DOWN to silence instantly, rises only very slowly.
+  // A single loud burst (cough, "testing") can no longer poison the threshold for the
+  // rest of the take, which was the main cause of "no speech detected".
+  if(rms < s.noiseFloor) s.noiseFloor = rms;
+  else s.noiseFloor += (rms - s.noiseFloor) * 0.0008;
+  if(s.noiseFloor < 1e-4) s.noiseFloor = 1e-4;
 
-  // meter shows level relative to recent peak so it is actually visible while speaking
-  getEls(tab).meter.style.width = Math.min(100, Math.round(rms / Math.max(s.peak, 0.012) * 100))+'%';
+  const mult = 1.6 + (_sensVal[tab]-4)/26 * 3.0;                 // slider 4..30 -> 1.6x..4.6x
+  const thr = Math.max(s.noiseFloor*mult, s.noiseFloor+0.004, 0.006);
+
+  // meter on a sqrt scale so quiet speech is still visibly moving
+  getEls(tab).meter.style.width = Math.min(100, Math.round(Math.sqrt(rms/0.15)*100))+'%';
 
   const speaking = rms > thr;
   if(s.vadState==='sil'){
@@ -748,23 +787,28 @@ function loopVAD(tab){
     else{
       if(!s.belowSince) s.belowSince=now;
       if(now - s.belowSince >= VAD.hangoverMs){
-        s.speakingMs += (s.belowSince - s.segStartT);
-        s.lastSpeechEndT = s.belowSince;
+        const segDur = s.belowSince - s.segStartT;
+        if(segDur >= VAD.minSpeechMs) s.speakingMs += segDur;   // ignore tiny noise blips
         s.vadState='sil'; s.silenceStartT=s.belowSince; s.belowSince=0;
       }
     }
   }
-  s.raf = requestAnimationFrame(()=>loopVAD(tab));
 }
 function stopRec(){
   const s = capSession; if(!s) return;
   s.active = false;
   const tab = s.tab;
   const els = getEls(tab);
-  if(s.sr){ try{ s.sr.abort(); }catch(e){} s.sr=null; }
-  if(s.raf) cancelAnimationFrame(s.raf);
+  if(s.sr){ try{ s.sr.onend=null; s.sr.abort(); }catch(e){} s.sr=null; }
+  commitInterim(s);   // keep the last in-progress sentence instead of dropping it
   const endT = performance.now();
-  if(s.vadState==='spk'){ s.speakingMs += (endT - s.segStartT); s.lastSpeechEndT = endT; }
+  if(s.vadState==='spk'){
+    const segDur = endT - s.segStartT;
+    if(segDur >= VAD.minSpeechMs) s.speakingMs += segDur;
+  }
+  if(s.procNode){ try{ s.procNode.onaudioprocess=null; s.procNode.disconnect(); }catch(e){} }
+  if(s.srcNode){ try{ s.srcNode.disconnect(); }catch(e){} }
+  if(s.muteNode){ try{ s.muteNode.disconnect(); }catch(e){} }
   if(s.stream){ s.stream.getTracks().forEach(t=>t.stop()); }
   if(s.audioCtx){ try{ s.audioCtx.close(); }catch(e){} }
   els.recBtn.classList.remove('on');
@@ -792,7 +836,7 @@ function analyzeCapture(s, transcript){
 
   // there are words but the audio analysis saw almost no speech -> timeline is unreliable
   // (suspended audio, blocked mic, etc). Do not show a bogus "thought for the whole time".
-  const timingBad = words.length>0 && speakingMs<300 && !s.vadFailed;
+  const timingBad = words.length>0 && speakingMs<250 && !s.vadFailed;
 
   // consecutive repeated phrases (length 1..5): catches "the the", "I want I want",
   // and "thank you for your thank you for your".
@@ -820,7 +864,7 @@ function analyzeCapture(s, transcript){
   let softCount=0; const softHits=[];
   SOFT_FILLERS.forEach(f=>{ const re=new RegExp('(^|\\s)'+f.replace(/ /g,'\\s')+'(\\s|$)','g'); const m=text.match(re); if(m){ softCount+=m.length; softHits.push(f+'×'+m.length); } });
 
-  const annotated = buildAnnotated(s, transcript, timingBad ? 0 : timeToFirstMs);
+  const annotated = buildAnnotated(s, words, timingBad ? 0 : timeToFirstMs);
   return {
     transcript, annotated, timingBad,
     totalMs, timeToFirstMs, speakingMs, silenceMs: Math.max(0, Math.round(totalMs - speakingMs)),
@@ -831,23 +875,30 @@ function analyzeCapture(s, transcript){
     vadFailed: !!s.vadFailed
   };
 }
-function buildAnnotated(s, transcript, timeToFirstMs){
+function buildAnnotated(s, words, timeToFirstMs){
   const sec = ms => (ms/1000).toFixed(1);
   let out = '';
   if(timeToFirstMs >= VAD.minPauseMs && !s.vadFailed){
     out += '<span class="pauseMk">开口前停顿 '+sec(timeToFirstMs)+'s</span> ';
   }
-  if(s.vadFailed || !s.finalChunks.length){ out += esc(transcript); return out; }
-  const chunks = s.finalChunks;
-  const pauses = s.pauses.slice().sort((a,b)=>a.atMs-b.atMs);
+  if(s.vadFailed || !words.length){ return (out + esc(words.join(' '))).trim(); }
+  const pauses = s.pauses.slice().filter(p=>p.durMs>=VAD.minPauseMs).sort((a,b)=>a.atMs-b.atMs);
+  const wt = s.wordTimes;
   let pi = 0;
-  for(let ci=0; ci<chunks.length; ci++){
-    out += esc(chunks[ci].text) + ' ';
-    const nextT = ci+1<chunks.length ? chunks[ci+1].t : Infinity;
-    while(pi<pauses.length && pauses[pi].atMs <= nextT){
-      if(pauses[pi].durMs >= VAD.minPauseMs){ out += '<span class="pauseMk">停顿 '+sec(pauses[pi].durMs)+'s</span> '; }
+  // walk the words; after each word, drop in any pause that started before the next
+  // word's spoken time. Word times come from the near-real-time interim stream, so the
+  // marker lands in the gap where the hesitation actually happened.
+  for(let i=0;i<words.length;i++){
+    out += esc(words[i]) + ' ';
+    const gapEnd = (i+1 < wt.length) ? wt[i+1] : Infinity;
+    while(pi < pauses.length && pauses[pi].atMs < gapEnd){
+      out += '<span class="pauseMk">停顿 '+sec(pauses[pi].durMs)+'s</span> ';
       pi++;
     }
+  }
+  while(pi < pauses.length){
+    out += '<span class="pauseMk">停顿 '+sec(pauses[pi].durMs)+'s</span> ';
+    pi++;
   }
   return out.trim();
 }

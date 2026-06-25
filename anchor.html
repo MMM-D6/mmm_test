@@ -110,6 +110,30 @@ body{display:flex;flex-direction:column;}
 .modalBtns{display:flex;justify-content:flex-end;gap:6px;padding-top:4px;}
 .dlgEmpty{font-size:12px;color:var(--mid);padding:2px 0;}
 
+/* left sidebar (card list) */
+#mainSplit{flex:1;display:flex;overflow:hidden;}
+#contentCol{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#sidebar{width:210px;flex-shrink:0;background:var(--gray);border-right:2px solid var(--dk);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar.collapsed{width:34px;}
+#sbHead{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:5px 6px;background:linear-gradient(90deg,var(--blue),var(--blue2));color:#fff;font-size:11px;font-weight:bold;flex-shrink:0;}
+#sidebar.collapsed #sbHeadTitle{display:none;}
+#sidebar.collapsed #sbHead{justify-content:center;padding:5px 2px;}
+#sbToggle{font-size:11px;padding:1px 6px;flex-shrink:0;}
+#sbList{flex:1;overflow-y:auto;padding:4px;display:flex;flex-direction:column;gap:3px;}
+#sidebar.collapsed #sbList,#sidebar.collapsed #sbFoot{display:none;}
+.sbItem{display:flex;align-items:center;gap:4px;padding:4px 5px;background:var(--light);border:2px solid;border-color:#fff var(--dk) var(--dk) #fff;cursor:pointer;user-select:none;min-height:26px;}
+.sbItem:hover{background:#eaeaea;}
+.sbItem.active{background:#fff;border-color:var(--dk) #fff #fff var(--dk);}
+.sbName{flex:1;font-size:12px;color:#000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sbItem.active .sbName{font-weight:bold;}
+.sbActs{display:flex;gap:2px;flex-shrink:0;opacity:0;}
+.sbItem:hover .sbActs,.sbItem.active .sbActs{opacity:1;}
+.sbBtn{font-family:var(--f);font-size:11px;line-height:1;padding:1px 4px;background:var(--gray);border:1px solid var(--dk);cursor:pointer;color:#000;}
+.sbBtn:hover{background:#fff;}
+.sbRename{flex:1;font-family:var(--f);font-size:12px;padding:2px 4px;border:2px solid;border-color:var(--dk) #fff #fff var(--dk);background:#fff;min-width:0;}
+.sbEmpty{font-size:11px;color:var(--mid);padding:10px 8px;line-height:1.7;}
+#sbFoot{flex-shrink:0;padding:5px 6px;border-top:2px solid var(--dk);}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);background:#000080;color:#fff;font-size:12px;padding:7px 14px;border:2px solid;border-color:#fff #000040 #000040 #fff;z-index:900;display:none;max-width:80%;text-align:center;}
 </style>
@@ -125,10 +149,12 @@ body{display:flex;flex-direction:column;}
 <div id="fileBar">
   <button class="btn" onclick="newCard()">📝 新建</button>
   <button class="btn" onclick="openFileAPI()">📂 打开</button>
+  <button class="btn" onclick="importFileAPI()" title="把卡片追加进当前工作区">➕ 导入</button>
   <button class="btn" id="saveBtn" onclick="saveFileAPI()">💾 保存</button>
   <button class="btn" id="saveAsBtn" onclick="saveAsFileAPI()">另存为</button>
   <button class="btn" id="editBtn" onclick="editCurrentCard()">✎ 编辑</button>
-  <input type="file" id="fileInput" accept=".json" style="display:none;" onchange="onFileSelected(this)">
+  <input type="file" id="fileInput" accept=".json" multiple style="display:none;" onchange="onFilesSelected(this,'replace')">
+  <input type="file" id="importInput" accept=".json" multiple style="display:none;" onchange="onFilesSelected(this,'append')">
   <span class="bardiv"></span>
   <span id="maskTools" style="display:flex;gap:5px;align-items:center;">
     <button class="btn" onclick="maskAll()">全遮蔽</button>
@@ -139,6 +165,19 @@ body{display:flex;flex-direction:column;}
   </span>
   <span id="fileHint"></span>
 </div>
+
+<div id="mainSplit">
+<aside id="sidebar">
+  <div id="sbHead">
+    <span id="sbHeadTitle">卡片 (<span id="sbCount">0</span>)</span>
+    <button id="sbToggle" class="btn" onclick="toggleSidebar()" title="折叠 / 展开">◀</button>
+  </div>
+  <div id="sbList"></div>
+  <div id="sbFoot">
+    <button class="btn" style="width:100%;" onclick="newCard()">+ 新建卡片</button>
+  </div>
+</aside>
+<div id="contentCol">
 
 <div id="tabBar">
   <div class="tab active" id="tab1" onclick="switchTab(1)">📖 记忆模式</div>
@@ -151,7 +190,7 @@ body{display:flex;flex-direction:column;}
   <div class="tab-panel active" id="panel1">
     <div class="modeMain">
       <div id="cardWrap">
-        <div class="noSel" id="noCard1">还没有卡片。点「新建」或「打开」开始。</div>
+        <div class="noSel" id="noCard1">还没有卡片。在左侧点「+ 新建卡片」，或用上方「打开 / 导入」。</div>
         <div id="cardArea" style="display:none;" onmouseup="onSel()" ontouchend="onSel()"></div>
         <div id="noteArea"></div>
       </div>
@@ -193,7 +232,7 @@ body{display:flex;flex-direction:column;}
   <div class="tab-panel" id="panel2">
     <div class="modeMain">
       <div id="convCardView">
-        <div class="noSel" id="noCard2">还没有卡片。点「新建」或「打开」开始。</div>
+        <div class="noSel" id="noCard2">还没有卡片。在左侧点「+ 新建卡片」，或用上方「打开 / 导入」。</div>
         <div id="convCardDetail" style="display:none;">
           <div class="convLabel">情境</div>
           <div id="convText"></div>
@@ -247,6 +286,8 @@ body{display:flex;flex-direction:column;}
     </div>
   </div>
 </div>
+</div><!-- /contentCol -->
+</div><!-- /mainSplit -->
 
 <!-- mask selection popup -->
 <div id="pop">
@@ -263,6 +304,10 @@ body{display:flex;flex-direction:column;}
     </div>
     <div class="modalBody">
       <input type="hidden" id="editCardId">
+      <div class="formRow">
+        <label class="formLabel">卡片名称（可选，显示在左侧列表）</label>
+        <input type="text" class="ta" id="fCardName" placeholder="例如：餐厅点餐 / Lesson 3 段落" style="font-size:14px;">
+      </div>
       <div class="formRow">
         <label class="formLabel">正文 / 情境（句子或段落）</label>
         <textarea class="ta" id="fText" rows="5" placeholder="输入英文句子、段落,或一个对话情境..."></textarea>
@@ -301,8 +346,12 @@ body{display:flex;flex-direction:column;}
 //  import it directly. Anchor-internal fields (prefixed _)
 //  are stripped on save.
 // ==================================================
-let card = null;        // the single card object, or null
-let fileHandle = null;  // FileSystemFileHandle for the open file, or null
+let cards = [];         // all cards in the current workspace
+let activeCardId = null;// id of the selected card
+let card = null;        // pointer to the active card (kept in sync), or null
+let renamingId = null;  // id of the card being renamed inline in the sidebar
+let sidebarCollapsed = false;
+let fileHandle = null;  // FileSystemFileHandle for the open workspace file, or null
 let openName = '';      // display name of the opened file (works even without a writable handle)
 let dirty = false;
 let activeTab = 1;
@@ -310,12 +359,26 @@ let dlgOpen = false;
 let _dlgRows = [];      // temp dialog rows in the editor
 let selS=0, selE=0;
 
+// keep the global `card` pointing at the selected card so the rest of the app
+// (render, masking, capture) can keep using `card` unchanged.
+function syncActive(){
+  card = cards.find(c=>String(c.id)===String(activeCardId)) || null;
+  if(!card && cards.length){ activeCardId = cards[0].id; card = cards[0]; }
+}
+function cardDisplayName(c){
+  if(c && c.name && c.name.trim()) return c.name.trim();
+  const t = (c && c.text ? c.text : '').trim().replace(/\s+/g,' ');
+  if(!t) return '未命名卡片';
+  return t.length>22 ? t.slice(0,22)+'…' : t;
+}
+
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 let _idSeed = 0;
 function newId(){ return Date.now() + (_idSeed++); }
 
 function normalizeCard(c){
   if(c.id==null) c.id = newId();
+  if(typeof c.name!=='string') c.name = '';
   if(!Array.isArray(c.dialogs)) c.dialogs = [];
   if(!Array.isArray(c.highlights)) c.highlights = [];
   if(!Array.isArray(c.answers)) c.answers = [];
@@ -329,6 +392,7 @@ function cleanCard(c){
   const out = {};
   Object.keys(c).forEach(k=>{ if(k[0]!=='_') out[k]=c[k]; });
   out.note = c.note||'';
+  out.name = c.name||'';
   out.dialogs = c.dialogs||[];
   out.highlights = c.highlights||[];
   out.answers = c.answers||[];
@@ -344,8 +408,9 @@ function toast(msg){
 
 function markDirty(){ dirty = true; updateTitle(); }
 function updateTitle(){
-  const name = fileHandle ? fileHandle.name : (openName || (card ? '未保存的新卡片' : '未打开文件'));
-  document.getElementById('fname').textContent = name + (dirty && card ? ' *' : '');
+  const base = fileHandle ? fileHandle.name : (openName || (cards.length ? '未保存的工作区' : '未打开文件'));
+  const cnt = cards.length ? ('  ['+cards.length+' 张]') : '';
+  document.getElementById('fname').textContent = base + (dirty && cards.length ? ' *' : '') + cnt;
 }
 
 // ==================================================
@@ -356,6 +421,7 @@ function newCard(){
   if(!confirmDiscard()) return;
   document.getElementById('editCardId').value = '';
   document.getElementById('cardModalTitle').textContent = '新建卡片';
+  document.getElementById('fCardName').value = '';
   document.getElementById('fText').value = '';
   document.getElementById('fNote').value = '';
   _dlgRows = [];
@@ -368,48 +434,81 @@ async function openFileAPI(){
   if(!confirmDiscard()) return;
   if(window.showOpenFilePicker){
     try{
-      const [fh] = await window.showOpenFilePicker({types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
-      fileHandle = fh;
-      loadFromJSON(await (await fh.getFile()).text(), fh.name);
+      const handles = await window.showOpenFilePicker({multiple:true, types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
+      const files = [];
+      for(const fh of handles){ files.push(await fh.getFile()); }
+      // only a single-file open can be saved back to its own handle
+      fileHandle = (handles.length===1) ? handles[0] : null;
+      await loadFiles(files, 'replace');
     }catch(e){ if(e.name!=='AbortError') fallbackOpen(); }
   } else fallbackOpen();
 }
+async function importFileAPI(){
+  if(window.showOpenFilePicker){
+    try{
+      const handles = await window.showOpenFilePicker({multiple:true, types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
+      const files = [];
+      for(const fh of handles){ files.push(await fh.getFile()); }
+      await loadFiles(files, 'append');
+    }catch(e){ if(e.name!=='AbortError') document.getElementById('importInput').click(); }
+  } else document.getElementById('importInput').click();
+}
 function fallbackOpen(){ document.getElementById('fileInput').click(); }
-function onFileSelected(input){
-  const f = input.files[0]; if(!f) return;
-  fileHandle = null; // plain input gives no writable handle; save will prompt save-as
-  const r = new FileReader();
-  r.onload = ev => loadFromJSON(ev.target.result, f.name);
-  r.readAsText(f);
+function onFilesSelected(input, mode){
+  const files = Array.from(input.files); if(!files.length) return;
+  if(mode==='replace') fileHandle = null;  // plain input gives no writable handle
+  loadFiles(files, mode);
   input.value='';
 }
 
-function loadFromJSON(text, filename){
-  try{
-    let data = JSON.parse(text);
-    if(Array.isArray(data)){
-      const valid = data.filter(c=>c && typeof c.text==='string' && c.text.trim());
-      if(!valid.length) throw new Error('文件里没有有效卡片');
-      if(valid.length>1) toast('文件含 '+valid.length+' 张,只载入第一张');
-      data = valid[0];
-    }
-    if(!data || typeof data.text!=='string' || !data.text.trim()) throw new Error('需要 text 字段');
-    card = normalizeCard(data);
-    dirty = false;
+// read every selected file, gather all cards inside (object or array), then apply
+async function loadFiles(files, mode){
+  const collected = [];
+  let bad = 0;
+  for(const f of files){
+    try{
+      const txt = await f.text();
+      let data = JSON.parse(txt);
+      const arr = Array.isArray(data) ? data : [data];
+      arr.forEach(c=>{ if(c && typeof c.text==='string' && c.text.trim()) collected.push(c); });
+    }catch(e){ bad++; }
+  }
+  if(!collected.length){ alert('没有读到有效卡片'+(bad?('（'+bad+' 个文件无法解析）'):'')); return; }
+  const filename = (files.length===1) ? files[0].name : '';
+  applyLoadedCards(collected, mode, filename);
+  let msg = (mode==='append'?'已导入 ':'已打开 ')+collected.length+' 张卡片';
+  if(bad) msg += '（'+bad+' 个文件跳过）';
+  toast(msg);
+}
+function applyLoadedCards(rawCards, mode, filename){
+  const normd = rawCards.map(c=>normalizeCard(Object.assign({}, c)));
+  if(mode==='append'){
+    const seen = new Set(cards.map(c=>String(c.id)));
+    normd.forEach(c=>{ while(seen.has(String(c.id))){ c.id = newId(); } seen.add(String(c.id)); });
+    cards = cards.concat(normd);
+    activeCardId = normd[0].id;
+    dirty = true;   // workspace now differs from any single file on disk
+  }else{
+    // guard against duplicate ids within the loaded set
+    const seen = new Set();
+    normd.forEach(c=>{ while(seen.has(String(c.id))){ c.id = newId(); } seen.add(String(c.id)); });
+    cards = normd;
+    activeCardId = normd[0].id;
     openName = filename || '';
-    curIdxReset();
-    renderAll();
-    toast('已打开: '+(filename||'卡片'));
-  }catch(err){ alert('文件读取失败: '+err.message); }
+    dirty = false;
+  }
+  syncActive();
+  curIdxReset();
+  renderAll();
 }
 
 async function saveFileAPI(){
-  if(!card){ toast('还没有卡片可保存'); return; }
+  if(!cards.length){ toast('还没有卡片可保存'); return; }
   if(fileHandle) await doSave(fileHandle);
   else await saveAsFileAPI();
 }
 async function saveAsFileAPI(){
-  if(!card){ toast('还没有卡片可保存'); return; }
+  if(!cards.length){ toast('还没有卡片可保存'); return; }
   if(window.showSaveFilePicker){
     try{
       const fh = await window.showSaveFilePicker({suggestedName: suggestName(), types:[{description:'英语卡片', accept:{'application/json':['.json']}}]});
@@ -418,17 +517,21 @@ async function saveAsFileAPI(){
     }catch(e){ if(e.name!=='AbortError') fallbackSave(); }
   } else fallbackSave();
 }
+function workspaceJSON(){
+  // a workspace is always written as an array of clean cards
+  return JSON.stringify(cards.map(cleanCard), null, 2);
+}
 async function doSave(fh){
   try{
     const w = await fh.createWritable();
-    await w.write(JSON.stringify(cleanCard(card), null, 2));
+    await w.write(workspaceJSON());
     await w.close();
     dirty = false; updateTitle();
-    toast('已保存到 '+fh.name);
+    toast('已保存 '+cards.length+' 张到 '+fh.name);
   }catch(e){ alert('保存失败: '+e.message); }
 }
 function fallbackSave(){
-  const blob = new Blob([JSON.stringify(cleanCard(card), null, 2)], {type:'application/json'});
+  const blob = new Blob([workspaceJSON()], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.download = suggestName(); a.href = url; a.click();
@@ -437,12 +540,17 @@ function fallbackSave(){
   toast('已下载（浏览器不支持直接写文件夹）');
 }
 function suggestName(){
-  const slug = (card && card.text ? card.text : 'card').slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
-  return 'engcard_'+slug+'_'+(card?card.id:'new')+'.json';
+  if(cards.length===1){
+    const c = cards[0];
+    const base = (c.name && c.name.trim()) ? c.name.trim() : (c.text||'card');
+    const slug = base.slice(0,20).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g,'');
+    return 'engcard_'+slug+'_'+c.id+'.json';
+  }
+  return 'engcards_'+cards.length+'.json';
 }
 
 function confirmDiscard(){
-  if(dirty && card) return confirm('当前卡片有未保存的更改,继续会丢弃。确定？');
+  if(dirty && cards.length) return confirm('当前工作区有未保存的更改,继续会丢弃。确定？');
   return true;
 }
 
@@ -453,6 +561,7 @@ function editCurrentCard(){
   if(!card){ toast('先新建或打开一张卡片'); return; }
   document.getElementById('editCardId').value = card.id;
   document.getElementById('cardModalTitle').textContent = '编辑卡片';
+  document.getElementById('fCardName').value = card.name||'';
   document.getElementById('fText').value = card.text||'';
   document.getElementById('fNote').value = card.note||'';
   _dlgRows = card.dialogs ? card.dialogs.map(d=>({type:d.type||'',text:d.text||''})) : [];
@@ -479,17 +588,19 @@ function renderDlgEditRows(){
 function saveCard(){
   const text = document.getElementById('fText').value.trim();
   if(!text){ toast('正文不能为空'); return; }
+  const name = document.getElementById('fCardName').value.trim();
   const note = document.getElementById('fNote').value.trim();
   const dialogs = _dlgRows.map(d=>({type:(d.type||'').trim()||'A', text:(d.text||'').trim()})).filter(d=>d.text);
   const editId = document.getElementById('editCardId').value;
   const editing = editId && card && String(card.id)===String(editId);
   if(editing){
     if(card.text!==text) card._masks = [];   // old mask offsets no longer match
-    card.text=text; card.note=note; card.dialogs=dialogs; card.editedAt=new Date().toISOString();
+    card.name=name; card.text=text; card.note=note; card.dialogs=dialogs; card.editedAt=new Date().toISOString();
   }else{
-    card = normalizeCard({id:newId(), text, note, dialogs, highlights:[], answers:[], createdAt:new Date().toISOString()});
-    fileHandle = null;   // a brand new card needs its own file on first save
-    openName = '';
+    const nc = normalizeCard({id:newId(), name, text, note, dialogs, highlights:[], answers:[], createdAt:new Date().toISOString()});
+    cards.push(nc);
+    activeCardId = nc.id;
+    syncActive();
   }
   markDirty();
   closeCardModal();
@@ -505,15 +616,91 @@ function curIdxReset(){ /* selection offsets are stale after a card swap */ selS
 
 function renderAll(){
   updateFileUI();
+  renderSidebar();
   renderMemory();
   renderConversation();
   updateTitle();
 }
 function updateFileUI(){
-  const has = !!card;
-  document.getElementById('editBtn').disabled = !has;
-  document.getElementById('saveBtn').disabled = !has;
-  document.getElementById('saveAsBtn').disabled = !has;
+  const hasCard = !!card;
+  const hasAny = cards.length>0;
+  document.getElementById('editBtn').disabled = !hasCard;
+  document.getElementById('saveBtn').disabled = !hasAny;
+  document.getElementById('saveAsBtn').disabled = !hasAny;
+}
+
+// ==================================================
+//  SIDEBAR (card list: select / rename / delete / collapse)
+// ==================================================
+function renderSidebar(){
+  const list = document.getElementById('sbList');
+  document.getElementById('sbCount').textContent = cards.length;
+  if(!cards.length){
+    list.innerHTML = '<div class="sbEmpty">还没有卡片。<br>点下方「+ 新建卡片」，或上方「打开 / 导入」。</div>';
+    return;
+  }
+  list.innerHTML = cards.map(c=>{
+    const id = String(c.id);
+    const active = id===String(activeCardId);
+    if(id===String(renamingId)){
+      return '<div class="sbItem editing'+(active?' active':'')+'">'
+        +'<input class="sbRename" type="text" value="'+esc(c.name||cardDisplayName(c))+'" '
+        +'onkeydown="sbRenameKey(event,&quot;'+id+'&quot;)" onblur="commitRename(&quot;'+id+'&quot;,this.value)">'
+        +'</div>';
+    }
+    return '<div class="sbItem'+(active?' active':'')+'" onclick="selectCard(&quot;'+id+'&quot;)" title="'+esc(cardDisplayName(c))+'">'
+      +'<span class="sbName">'+esc(cardDisplayName(c))+'</span>'
+      +'<span class="sbActs">'
+        +'<button class="sbBtn" title="重命名" onclick="event.stopPropagation();startRename(&quot;'+id+'&quot;)">✎</button>'
+        +'<button class="sbBtn" title="删除" onclick="event.stopPropagation();deleteCard(&quot;'+id+'&quot;)">✕</button>'
+      +'</span>'
+    +'</div>';
+  }).join('');
+}
+function selectCard(id){
+  if(String(id)===String(activeCardId)) return;
+  if(capSession) stopRec();
+  activeCardId = id;
+  syncActive();
+  curIdxReset();
+  renderAll();
+}
+function startRename(id){
+  renamingId = id; renderSidebar();
+  setTimeout(()=>{ const el=document.querySelector('.sbRename'); if(el){ el.focus(); el.select(); } }, 30);
+}
+function sbRenameKey(e, id){
+  if(e.key==='Enter'){ e.preventDefault(); commitRename(id, e.target.value); }
+  else if(e.key==='Escape'){ e.preventDefault(); cancelRename(); }
+}
+function commitRename(id, val){
+  if(String(renamingId)!==String(id)) return;   // already committed/cancelled
+  const c = cards.find(x=>String(x.id)===String(id));
+  if(c){ c.name = (val||'').trim(); markDirty(); }
+  renamingId = null;
+  renderSidebar(); updateTitle();
+}
+function cancelRename(){ renamingId = null; renderSidebar(); }
+function deleteCard(id){
+  const idx = cards.findIndex(x=>String(x.id)===String(id));
+  if(idx<0) return;
+  const c = cards[idx];
+  if(!confirm('删除卡片「'+cardDisplayName(c)+'」？此操作不可撤销。')) return;
+  if(capSession) stopRec();
+  cards.splice(idx, 1);
+  if(String(activeCardId)===String(id)){
+    const next = cards[idx] || cards[idx-1] || null;
+    activeCardId = next ? next.id : null;
+  }
+  syncActive();
+  markDirty();
+  curIdxReset();
+  renderAll();
+}
+function toggleSidebar(){
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+  document.getElementById('sbToggle').textContent = sidebarCollapsed ? '▶' : '◀';
 }
 
 function renderMemory(){
@@ -1075,7 +1262,7 @@ function switchTab(n){
   document.getElementById('convTools').style.display = n===2 ? 'flex' : 'none';
 }
 
-window.addEventListener('beforeunload', e=>{ if(dirty && card){ e.preventDefault(); e.returnValue=''; } });
+window.addEventListener('beforeunload', e=>{ if(dirty && cards.length){ e.preventDefault(); e.returnValue=''; } });
 
 function init(){
   renderAll();
